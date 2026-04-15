@@ -15,11 +15,11 @@ export const loudnessTargetSchema = z.enum(['off', 'webSns', 'applePodcast', 'br
 // ── Export limits (bounds for numeric fields) ──────────────────
 
 export const EXPORT_LIMITS = {
-  width:        { min: 128, max: 7680 },
-  height:       { min: 128, max: 4320 },
-  fps:          { min: 1,   max: 120 },
-  videoBitrate: { min: 100_000, max: 100_000_000 },
-  timeoutMs:    { min: 1_000,   max: 1_800_000 },
+  width:        { min: 16, max: 3840 },      // up to 4K
+  height:       { min: 16, max: 2160 },
+  fps:          { min: 1,  max: 120 },
+  videoBitrate: { min: 100_000, max: 100_000_000 }, // 100 kbps – 100 Mbps
+  timeoutMs:    { min: 1_000,   max: 1_800_000 },   // 1 s – 30 min
 } as const
 
 // ── Input schemas ──────────────────────────────────────────────
