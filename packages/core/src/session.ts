@@ -12,6 +12,9 @@
 import { chromium, type Browser, type BrowserContext, type Page } from 'playwright'
 import { editorUrl, readEnv, type Env } from '@videobuff/contracts'
 
+const DEFAULT_VIEWPORT = { width: 1440, height: 900 } as const
+const DEFAULT_READY_TIMEOUT_MS = 20_000
+
 export interface SessionOptions {
   /** Override environment defaults */
   env?: Partial<Env>
@@ -34,8 +37,8 @@ export function log(msg: string): void {
 
 async function launch(opts: SessionOptions = {}): Promise<Session> {
   const env = { ...readEnv(), ...opts.env }
-  const viewport = opts.viewport ?? { width: 1440, height: 900 }
-  const readyTimeout = opts.readyTimeoutMs ?? 20_000
+  const viewport = opts.viewport ?? DEFAULT_VIEWPORT
+  const readyTimeout = opts.readyTimeoutMs ?? DEFAULT_READY_TIMEOUT_MS
 
   let browser: Browser | null = null
   try {

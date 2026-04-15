@@ -1,7 +1,7 @@
 {
   "name": "@videobuff/contracts",
   "version": "0.1.0",
-  "description": "Zod v4 schemas — single source of truth for VideoBuff automation API",
+  "description": "Zod v3 schemas — single source of truth for VideoBuff automation API",
   "type": "module",
   "main": "./dist/index.js",
   "types": "./dist/index.d.ts",

@@ -33,17 +33,14 @@ export const exportToBlobInputSchema = z.object({
   loudnessTarget: loudnessTargetSchema.optional(),
   timeoutMs:      z.number().int().min(EXPORT_LIMITS.timeoutMs.min).max(EXPORT_LIMITS.timeoutMs.max).optional(),
 }).optional()
-export type ExportToBlobInput = z.infer<typeof exportToBlobInputSchema>
 
 export const addTextClipInputSchema = z.object({
   startMs: z.number().int().min(0),
 })
-export type AddTextClipInput = z.infer<typeof addTextClipInputSchema>
 
 export const setPlayheadInputSchema = z.object({
   ms: z.number().int().min(0),
 })
-export type SetPlayheadInput = z.infer<typeof setPlayheadInputSchema>
 
 // ── Output schemas ─────────────────────────────────────────────
 

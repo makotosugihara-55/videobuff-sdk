@@ -1,11 +1,17 @@
 /**
  * Shared types for the VideoBuff automation API.
- * These mirror the web app's internal types but are decoupled —
- * the web app will import from here (not the other way around).
+ * Derived from the Zod schemas in schemas.ts — single source of truth.
  */
 
+import { z } from 'zod'
+import {
+  videoCodecSchema,
+  loudnessTargetSchema,
+  exportSettingsSchema,
+} from './schemas.js'
+
 /** Video codec for export. */
-export type VideoCodecType = 'h264' | 'h265'
+export type VideoCodecType = z.infer<typeof videoCodecSchema>
 
 /**
  * Integrated loudness (LUFS) normalization target.
@@ -14,21 +20,13 @@ export type VideoCodecType = 'h264' | 'h265'
  * - 'applePodcast' : -16 LUFS (Apple Music / Apple Podcasts)
  * - 'broadcast'    : -23 LUFS (EBU R128 / ATSC A/85)
  */
-export type LoudnessTargetKey = 'off' | 'webSns' | 'applePodcast' | 'broadcast'
+export type LoudnessTargetKey = z.infer<typeof loudnessTargetSchema>
 
 /** Resolved export settings returned after an export completes. */
-export interface ExportSettings {
-  width: number
-  height: number
-  fps: number
-  videoCodec: VideoCodecType
-  videoBitrate: number
-  audioBitrate: number
-  audioSampleRate: number
-  loudnessTarget: LoudnessTargetKey
-  previewFrameWidth: number
-  previewFrameHeight: number
-}
+export type ExportSettings = z.infer<typeof exportSettingsSchema>
 
-/** Any JSON-serializable value. Used for snapshot return types. */
-export type Json = string | number | boolean | null | Json[] | { [k: string]: Json }
+/**
+ * Export phase — used by the web app for progress reporting.
+ * Not backed by a Zod schema because it flows client-side only.
+ */
+export type ExportPhase = 'idle' | 'rendering' | 'muxing' | 'done' | 'error'

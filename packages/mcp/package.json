@@ -23,12 +23,11 @@
   "dependencies": {
     "@modelcontextprotocol/sdk": "^1.0.4",
     "@videobuff/contracts": "workspace:*",
-    "@videobuff/core": "workspace:*",
-    "playwright": "^1.59.0",
-    "zod": "^3.24.0"
+    "@videobuff/core": "workspace:*"
   },
   "devDependencies": {
     "@types/node": "^22",
+    "playwright": "^1.59.0",
     "tsup": "^8.0.0",
     "tsx": "^4.19.0",
     "typescript": "^5.6.0"

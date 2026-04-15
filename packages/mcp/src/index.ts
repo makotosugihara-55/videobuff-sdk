@@ -18,9 +18,7 @@ import type { Page } from 'playwright'
 import { writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
-import { z } from 'zod'
-
-import { operations, EXPORT_LIMITS } from '@videobuff/contracts'
+import { operations, exportToBlobInputSchema, addTextClipInputSchema, setPlayheadInputSchema } from '@videobuff/contracts'
 import { VideoBuffSession, log } from '@videobuff/core'
 
 // Re-export log from core uses stderr (never stdout — that's the JSON-RPC channel)
@@ -99,9 +97,7 @@ server.registerTool(
   'videobuff_add_text_clip',
   {
     description: operations.addTextClip.description,
-    inputSchema: {
-      startMs: z.number().int().min(0).describe('Start time in ms (>= 0)'),
-    },
+    inputSchema: addTextClipInputSchema.shape,
   },
   ({ startMs }) =>
     withPage(page =>
@@ -113,9 +109,7 @@ server.registerTool(
   'videobuff_set_playhead',
   {
     description: operations.setPlayheadMs.description,
-    inputSchema: {
-      ms: z.number().int().min(0).describe('Target time in ms'),
-    },
+    inputSchema: setPlayheadInputSchema.shape,
   },
   ({ ms }) =>
     withPage(page =>
@@ -133,21 +127,7 @@ server.registerTool(
   'videobuff_export',
   {
     description: operations.exportToBlob.description,
-    inputSchema: {
-      width: z.number().int().min(EXPORT_LIMITS.width.min).max(EXPORT_LIMITS.width.max)
-        .describe(`Width in px [${EXPORT_LIMITS.width.min}–${EXPORT_LIMITS.width.max}]`).optional(),
-      height: z.number().int().min(EXPORT_LIMITS.height.min).max(EXPORT_LIMITS.height.max)
-        .describe(`Height in px [${EXPORT_LIMITS.height.min}–${EXPORT_LIMITS.height.max}]`).optional(),
-      fps: z.number().int().min(EXPORT_LIMITS.fps.min).max(EXPORT_LIMITS.fps.max)
-        .describe(`Frames per second [${EXPORT_LIMITS.fps.min}–${EXPORT_LIMITS.fps.max}]`).optional(),
-      videoCodec: z.enum(['h264', 'h265']).describe('Video codec').optional(),
-      videoBitrate: z.number().int().min(EXPORT_LIMITS.videoBitrate.min).max(EXPORT_LIMITS.videoBitrate.max)
-        .describe('Video bitrate in bps').optional(),
-      loudnessTarget: z.enum(['off', 'webSns', 'applePodcast', 'broadcast'])
-        .describe('Loudness normalization target').optional(),
-      timeoutMs: z.number().int().min(EXPORT_LIMITS.timeoutMs.min).max(EXPORT_LIMITS.timeoutMs.max)
-        .describe('Timeout in ms (default 5 min)').optional(),
-    },
+    inputSchema: exportToBlobInputSchema.unwrap().shape,
   },
   async (args, extra) => {
     try {
@@ -225,6 +205,7 @@ server.registerTool(
         ],
       }
     } catch (e) {
+      onExportProgress = null
       return errorResult(e)
     }
   },
