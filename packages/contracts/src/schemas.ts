@@ -1,0 +1,87 @@
+/**
+ * Zod schemas for VideoBuff automation API inputs and outputs.
+ *
+ * These schemas are the authoritative validation layer — both the
+ * web-side ACL and the SDK-side tools validate through these.
+ */
+
+import { z } from 'zod'
+
+// ── Enums ──────────────────────────────────────────────────────
+
+export const videoCodecSchema = z.enum(['h264', 'h265'])
+export const loudnessTargetSchema = z.enum(['off', 'webSns', 'applePodcast', 'broadcast'])
+
+// ── Export limits (bounds for numeric fields) ──────────────────
+
+export const EXPORT_LIMITS = {
+  width:        { min: 128, max: 7680 },
+  height:       { min: 128, max: 4320 },
+  fps:          { min: 1,   max: 120 },
+  videoBitrate: { min: 100_000, max: 100_000_000 },
+  timeoutMs:    { min: 1_000,   max: 1_800_000 },
+} as const
+
+// ── Input schemas ──────────────────────────────────────────────
+
+export const exportToBlobInputSchema = z.object({
+  width:          z.number().int().min(EXPORT_LIMITS.width.min).max(EXPORT_LIMITS.width.max).optional(),
+  height:         z.number().int().min(EXPORT_LIMITS.height.min).max(EXPORT_LIMITS.height.max).optional(),
+  fps:            z.number().int().min(EXPORT_LIMITS.fps.min).max(EXPORT_LIMITS.fps.max).optional(),
+  videoCodec:     videoCodecSchema.optional(),
+  videoBitrate:   z.number().int().min(EXPORT_LIMITS.videoBitrate.min).max(EXPORT_LIMITS.videoBitrate.max).optional(),
+  loudnessTarget: loudnessTargetSchema.optional(),
+  timeoutMs:      z.number().int().min(EXPORT_LIMITS.timeoutMs.min).max(EXPORT_LIMITS.timeoutMs.max).optional(),
+}).optional()
+export type ExportToBlobInput = z.infer<typeof exportToBlobInputSchema>
+
+export const addTextClipInputSchema = z.object({
+  startMs: z.number().int().min(0),
+})
+export type AddTextClipInput = z.infer<typeof addTextClipInputSchema>
+
+export const setPlayheadInputSchema = z.object({
+  ms: z.number().int().min(0),
+})
+export type SetPlayheadInput = z.infer<typeof setPlayheadInputSchema>
+
+// ── Output schemas ─────────────────────────────────────────────
+
+export const exportSettingsSchema = z.object({
+  width: z.number(),
+  height: z.number(),
+  fps: z.number(),
+  videoCodec: videoCodecSchema,
+  videoBitrate: z.number(),
+  audioBitrate: z.number(),
+  audioSampleRate: z.number(),
+  loudnessTarget: loudnessTargetSchema,
+  previewFrameWidth: z.number(),
+  previewFrameHeight: z.number(),
+})
+
+export const exportToBlobResultSchema = z.object({
+  base64: z.string(),
+  byteLength: z.number().int().min(0),
+  mimeType: z.string(),
+  durationMs: z.number().min(0),
+  settings: exportSettingsSchema,
+})
+export type ExportToBlobResult = z.infer<typeof exportToBlobResultSchema>
+
+export const pingResultSchema = z.object({
+  pong: z.literal(true),
+  time: z.number(),
+})
+
+export const addTextClipResultSchema = z.object({
+  clipId: z.string().nullable(),
+})
+
+export const setPlayheadResultSchema = z.object({
+  playheadMs: z.number(),
+})
+
+export const togglePlayResultSchema = z.object({
+  isPlaying: z.boolean(),
+})

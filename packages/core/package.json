@@ -1,0 +1,28 @@
+{
+  "name": "@videobuff/core",
+  "version": "0.1.0",
+  "description": "Persistent Playwright session for driving VideoBuff programmatically",
+  "type": "module",
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js"
+    }
+  },
+  "scripts": {
+    "build": "tsup src/index.ts --format esm --dts",
+    "typecheck": "tsc --noEmit",
+    "clean": "rm -rf dist .turbo *.tsbuildinfo"
+  },
+  "dependencies": {
+    "@videobuff/contracts": "workspace:*",
+    "playwright": "^1.59.0"
+  },
+  "devDependencies": {
+    "@types/node": "^22",
+    "tsup": "^8.0.0",
+    "typescript": "^5.6.0"
+  }
+}

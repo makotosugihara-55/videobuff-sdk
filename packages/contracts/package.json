@@ -1,0 +1,27 @@
+{
+  "name": "@videobuff/contracts",
+  "version": "0.1.0",
+  "description": "Zod v4 schemas — single source of truth for VideoBuff automation API",
+  "type": "module",
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js"
+    }
+  },
+  "scripts": {
+    "build": "tsup src/index.ts --format esm --dts",
+    "typecheck": "tsc --noEmit",
+    "clean": "rm -rf dist .turbo *.tsbuildinfo"
+  },
+  "dependencies": {
+    "zod": "^3.24.0"
+  },
+  "devDependencies": {
+    "@types/node": "^22",
+    "tsup": "^8.0.0",
+    "typescript": "^5.6.0"
+  }
+}

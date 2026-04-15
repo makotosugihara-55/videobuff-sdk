@@ -1,0 +1,16 @@
+{
+  "name": "videobuff-sdk",
+  "private": true,
+  "description": "VideoBuff automation SDK — contracts, core session, MCP server, CLI",
+  "packageManager": "pnpm@10.7.1",
+  "engines": {
+    "node": ">=20"
+  },
+  "scripts": {
+    "build": "turbo run build",
+    "typecheck": "turbo run typecheck",
+    "lint": "biome check .",
+    "lint:fix": "biome check --write .",
+    "clean": "turbo run clean"
+  }
+}
