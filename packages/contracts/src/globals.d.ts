@@ -22,6 +22,15 @@ export interface VideoBuffAutomationAPI {
     durationMs: number
     settings: Record<string, unknown>
   }>
+  selectClip: (input: { clipId: string | null }) => { selectedClipId: string | null }
+  removeClip: (input: { clipId: string }) => { ok: true }
+  splitClip: (input: { clipId: string; splitAtMs: number }) => { ok: true }
+  moveClip: (input: { clipId: string; newStartMs: number }) => { ok: true }
+  trimClipStart: (input: { clipId: string; newStartMs: number }) => { ok: true }
+  trimClipEnd: (input: { clipId: string; newEndMs: number }) => { ok: true }
+  updateTextClip: (input: { clipId: string; [key: string]: unknown }) => { ok: true }
+  undo: () => { ok: true }
+  redo: () => { ok: true }
 }
 
 declare global {

@@ -15,6 +15,15 @@ import {
   setPlayheadResultSchema,
   pingResultSchema,
   togglePlayResultSchema,
+  selectClipInputSchema,
+  selectClipResultSchema,
+  removeClipInputSchema,
+  splitClipInputSchema,
+  moveClipInputSchema,
+  trimClipStartInputSchema,
+  trimClipEndInputSchema,
+  updateTextClipInputSchema,
+  okResultSchema,
 } from './schemas.js'
 
 export interface OperationDef<I extends z.ZodTypeAny = z.ZodTypeAny, O extends z.ZodTypeAny = z.ZodTypeAny> {
@@ -62,6 +71,51 @@ export const operations = {
     description: 'Run the full export pipeline. Returns MP4 as base64.',
     input: exportToBlobInputSchema,
     output: exportToBlobResultSchema,
+  },
+  selectClip: {
+    description: 'Select a clip by ID, or null to deselect.',
+    input: selectClipInputSchema,
+    output: selectClipResultSchema,
+  },
+  removeClip: {
+    description: 'Remove a clip from the timeline.',
+    input: removeClipInputSchema,
+    output: okResultSchema,
+  },
+  splitClip: {
+    description: 'Split a clip into two at the given time.',
+    input: splitClipInputSchema,
+    output: okResultSchema,
+  },
+  moveClip: {
+    description: 'Move a clip to a new start time.',
+    input: moveClipInputSchema,
+    output: okResultSchema,
+  },
+  trimClipStart: {
+    description: 'Trim the start edge of a clip.',
+    input: trimClipStartInputSchema,
+    output: okResultSchema,
+  },
+  trimClipEnd: {
+    description: 'Trim the end edge of a clip.',
+    input: trimClipEndInputSchema,
+    output: okResultSchema,
+  },
+  updateTextClip: {
+    description: 'Update text clip properties (font, color, position, etc.).',
+    input: updateTextClipInputSchema,
+    output: okResultSchema,
+  },
+  undo: {
+    description: 'Undo the last action.',
+    input: z.object({}),
+    output: okResultSchema,
+  },
+  redo: {
+    description: 'Redo the last undone action.',
+    input: z.object({}),
+    output: okResultSchema,
   },
 } as const satisfies Record<string, OperationDef>
 

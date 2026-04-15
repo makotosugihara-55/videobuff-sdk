@@ -18,7 +18,19 @@ import type { Page } from 'playwright'
 import { writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
-import { operations, exportToBlobInputSchema, addTextClipInputSchema, setPlayheadInputSchema } from '@videobuff/contracts'
+import {
+  operations,
+  exportToBlobInputSchema,
+  addTextClipInputSchema,
+  setPlayheadInputSchema,
+  selectClipInputSchema,
+  removeClipInputSchema,
+  splitClipInputSchema,
+  moveClipInputSchema,
+  trimClipStartInputSchema,
+  trimClipEndInputSchema,
+  updateTextClipInputSchema,
+} from '@videobuff/contracts'
 import { VideoBuffSession, log } from '@videobuff/core'
 
 // Re-export log from core uses stderr (never stdout — that's the JSON-RPC channel)
@@ -122,6 +134,128 @@ server.registerTool(
   { description: operations.togglePlay.description, inputSchema: {} },
   () => withPage(page => page.evaluate(() => window.videobuff!.togglePlay())),
 )
+
+// ── Clip selection ──────────────────────────────────────────
+
+server.registerTool(
+  'videobuff_select_clip',
+  {
+    description: operations.selectClip.description,
+    inputSchema: selectClipInputSchema.shape,
+  },
+  ({ clipId }) =>
+    withPage(page =>
+      page.evaluate((id: string | null) => window.videobuff!.selectClip({ clipId: id }), clipId),
+    ),
+)
+
+// ── Clip CRUD ───────────────────────────────────────────────
+
+server.registerTool(
+  'videobuff_remove_clip',
+  {
+    description: operations.removeClip.description,
+    inputSchema: removeClipInputSchema.shape,
+  },
+  ({ clipId }) =>
+    withPage(page =>
+      page.evaluate((id: string) => window.videobuff!.removeClip({ clipId: id }), clipId),
+    ),
+)
+
+server.registerTool(
+  'videobuff_split_clip',
+  {
+    description: operations.splitClip.description,
+    inputSchema: splitClipInputSchema.shape,
+  },
+  ({ clipId, splitAtMs }) =>
+    withPage(page =>
+      page.evaluate(
+        (args: { clipId: string; splitAtMs: number }) => window.videobuff!.splitClip(args),
+        { clipId, splitAtMs },
+      ),
+    ),
+)
+
+server.registerTool(
+  'videobuff_move_clip',
+  {
+    description: operations.moveClip.description,
+    inputSchema: moveClipInputSchema.shape,
+  },
+  ({ clipId, newStartMs }) =>
+    withPage(page =>
+      page.evaluate(
+        (args: { clipId: string; newStartMs: number }) => window.videobuff!.moveClip(args),
+        { clipId, newStartMs },
+      ),
+    ),
+)
+
+server.registerTool(
+  'videobuff_trim_clip_start',
+  {
+    description: operations.trimClipStart.description,
+    inputSchema: trimClipStartInputSchema.shape,
+  },
+  ({ clipId, newStartMs }) =>
+    withPage(page =>
+      page.evaluate(
+        (args: { clipId: string; newStartMs: number }) => window.videobuff!.trimClipStart(args),
+        { clipId, newStartMs },
+      ),
+    ),
+)
+
+server.registerTool(
+  'videobuff_trim_clip_end',
+  {
+    description: operations.trimClipEnd.description,
+    inputSchema: trimClipEndInputSchema.shape,
+  },
+  ({ clipId, newEndMs }) =>
+    withPage(page =>
+      page.evaluate(
+        (args: { clipId: string; newEndMs: number }) => window.videobuff!.trimClipEnd(args),
+        { clipId, newEndMs },
+      ),
+    ),
+)
+
+// ── Text clip editing ───────────────────────────────────────
+
+server.registerTool(
+  'videobuff_update_text_clip',
+  {
+    description: operations.updateTextClip.description,
+    inputSchema: updateTextClipInputSchema.shape,
+  },
+  ({ clipId, ...patch }) =>
+    withPage(page =>
+      page.evaluate(
+        (args: { clipId: string; patch: Record<string, unknown> }) =>
+          window.videobuff!.updateTextClip(args),
+        { clipId, patch },
+      ),
+    ),
+)
+
+// ── Undo / Redo ─────────────────────────────────────────────
+
+server.registerTool(
+  'videobuff_undo',
+  { description: operations.undo.description, inputSchema: {} },
+  () => withPage(page => page.evaluate(() => window.videobuff!.undo())),
+)
+
+server.registerTool(
+  'videobuff_redo',
+  { description: operations.redo.description, inputSchema: {} },
+  () => withPage(page => page.evaluate(() => window.videobuff!.redo())),
+)
+
+// ── Export ───────────────────────────────────────────────────
 
 server.registerTool(
   'videobuff_export',

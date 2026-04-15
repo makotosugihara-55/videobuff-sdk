@@ -42,6 +42,55 @@ export const setPlayheadInputSchema = z.object({
   ms: z.number().int().min(0),
 })
 
+export const selectClipInputSchema = z.object({
+  clipId: z.string().nullable(),
+})
+
+export const removeClipInputSchema = z.object({
+  clipId: z.string(),
+})
+
+export const splitClipInputSchema = z.object({
+  clipId: z.string(),
+  splitAtMs: z.number().int().min(0),
+})
+
+export const moveClipInputSchema = z.object({
+  clipId: z.string(),
+  newStartMs: z.number().int().min(0),
+})
+
+export const trimClipStartInputSchema = z.object({
+  clipId: z.string(),
+  newStartMs: z.number().int().min(0),
+})
+
+export const trimClipEndInputSchema = z.object({
+  clipId: z.string(),
+  newEndMs: z.number().int().min(0),
+})
+
+export const updateTextClipInputSchema = z.object({
+  clipId: z.string(),
+  text: z.string().optional(),
+  fontFamily: z.string().optional(),
+  fontSize: z.number().min(1).optional(),
+  color: z.string().optional(),
+  bold: z.boolean().optional(),
+  italic: z.boolean().optional(),
+  textAlign: z.enum(['left', 'center', 'right']).optional(),
+  positionX: z.number().optional(),
+  positionY: z.number().optional(),
+  backgroundColor: z.string().optional(),
+  outlineColor: z.string().optional(),
+  outlineWidth: z.number().min(0).optional(),
+  shadowColor: z.string().optional(),
+  shadowBlur: z.number().min(0).optional(),
+  shadowOffsetX: z.number().optional(),
+  shadowOffsetY: z.number().optional(),
+  opacity: z.number().min(0).max(1).optional(),
+})
+
 // ── Output schemas ─────────────────────────────────────────────
 
 export const exportSettingsSchema = z.object({
@@ -81,4 +130,10 @@ export const setPlayheadResultSchema = z.object({
 
 export const togglePlayResultSchema = z.object({
   isPlaying: z.boolean(),
+})
+
+export const okResultSchema = z.object({ ok: z.literal(true) })
+
+export const selectClipResultSchema = z.object({
+  selectedClipId: z.string().nullable(),
 })
