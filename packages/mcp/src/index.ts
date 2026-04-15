@@ -48,6 +48,19 @@ function errorResult(err: unknown): ToolResult {
  */
 const session = new VideoBuffSession()
 
+// Mutable progress handler — updated per-export so the CDP binding
+// (which survives across exports on the same page) always routes to
+// the *current* MCP notification channel.
+let onExportProgress: ((p: ExportProgress) => void) | null = null
+
+type ExportProgress = {
+  phase: string
+  percent: number
+  currentFrame: number
+  totalFrames: number
+  message: string
+}
+
 async function withPage<T>(fn: (page: Page) => Promise<T>): Promise<ToolResult> {
   try {
     const { page } = await session.get()
@@ -136,11 +149,40 @@ server.registerTool(
         .describe('Timeout in ms (default 5 min)').optional(),
     },
   },
-  async (args) => {
+  async (args, extra) => {
     try {
       const { page } = await session.get()
       log('starting export…')
       const start = Date.now()
+      const progressToken = extra._meta?.progressToken
+
+      // Install progress bridge: browser → Node → MCP notification.
+      // page.exposeFunction registers a CDP binding that persists for the
+      // page lifetime, so we install it once and route through the mutable
+      // `onExportProgress` reference (updated per-export call).
+      onExportProgress = (p) => {
+        log(`export progress: ${p.phase} ${p.percent}% (${p.currentFrame}/${p.totalFrames})`)
+        if (progressToken !== undefined) {
+          extra.sendNotification({
+            method: 'notifications/progress',
+            params: {
+              progressToken,
+              progress: p.currentFrame,
+              total: p.totalFrames,
+              message: `${p.phase}: ${p.percent}% — ${p.message}`,
+            },
+          }).catch(() => { /* best-effort */ })
+        }
+      }
+      try {
+        await page.exposeFunction(
+          '__videobuff_onProgress',
+          (p: ExportProgress) => onExportProgress?.(p),
+        )
+      } catch {
+        // Already registered from a previous export on this page — fine,
+        // the mutable `onExportProgress` ensures the current handler is used.
+      }
 
       const result = await page.evaluate(
         (input: Record<string, unknown>) => window.videobuff!.exportToBlob(input),
@@ -149,6 +191,10 @@ server.registerTool(
 
       const elapsed = Date.now() - start
       log(`export completed in ${elapsed}ms (${result.byteLength} bytes)`)
+
+      // Clear the handler so stale progress events from a hypothetical
+      // concurrent call don't leak into the wrong MCP channel.
+      onExportProgress = null
 
       // Decode base64 → Buffer → write to temp file
       const buf = Buffer.from(result.base64, 'base64')
