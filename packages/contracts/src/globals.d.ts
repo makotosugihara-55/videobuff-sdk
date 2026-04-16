@@ -6,6 +6,9 @@
  * or reference this file to pick up the augmentation.
  */
 
+/** Shared `{ ok: true }` return type for mutation methods. */
+type OkResult = { readonly ok: true }
+
 export interface VideoBuffAutomationAPI {
   readonly ready: true
   readonly version: string
@@ -23,14 +26,15 @@ export interface VideoBuffAutomationAPI {
     settings: Record<string, unknown>
   }>
   selectClip: (input: { clipId: string | null }) => { selectedClipId: string | null }
-  removeClip: (input: { clipId: string }) => { ok: true }
-  splitClip: (input: { clipId: string; splitAtMs: number }) => { ok: true }
-  moveClip: (input: { clipId: string; newStartMs: number }) => { ok: true }
-  trimClipStart: (input: { clipId: string; newStartMs: number }) => { ok: true }
-  trimClipEnd: (input: { clipId: string; newEndMs: number }) => { ok: true }
-  updateTextClip: (input: { clipId: string; [key: string]: unknown }) => { ok: true }
-  undo: () => { ok: true }
-  redo: () => { ok: true }
+  removeClip: (input: { clipId: string }) => OkResult
+  splitClip: (input: { clipId: string; splitAtMs: number }) => OkResult
+  moveClip: (input: { clipId: string; newStartMs: number }) => OkResult
+  trimClipStart: (input: { clipId: string; newStartMs: number }) => OkResult
+  trimClipEnd: (input: { clipId: string; newEndMs: number }) => OkResult
+  // Flat shape: `clipId` + any subset of text-clip fields (text, fontSize, color, …).
+  updateTextClip: (input: { clipId: string; [key: string]: unknown }) => OkResult
+  undo: () => OkResult
+  redo: () => OkResult
 }
 
 declare global {

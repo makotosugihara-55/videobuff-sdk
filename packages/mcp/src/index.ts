@@ -20,6 +20,7 @@ import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import {
   operations,
+  type OperationName,
   exportToBlobInputSchema,
   addTextClipInputSchema,
   setPlayheadInputSchema,
@@ -30,10 +31,26 @@ import {
   trimClipStartInputSchema,
   trimClipEndInputSchema,
   updateTextClipInputSchema,
+  type VideoBuffAutomationAPI,
 } from '@videobuff/contracts'
 import { VideoBuffSession, log } from '@videobuff/core'
 
-// Re-export log from core uses stderr (never stdout — that's the JSON-RPC channel)
+/**
+ * Structural shape for a Zod object's `.shape`. Kept local so this package
+ * doesn't need a direct zod dependency (all Zod types flow transitively
+ * through @videobuff/contracts).
+ */
+// biome-ignore lint/suspicious/noExplicitAny: zod internal shape type is not worth reimporting
+type SchemaShape = Record<string, any>
+type ToolArgs = Record<string, unknown>
+
+// ── Constants ────────────────────────────────────────────────
+
+const SERVER_NAME = 'videobuff'
+const SERVER_VERSION = '0.1.0'
+const EXPORT_FILENAME_PREFIX = 'videobuff-export-'
+const EXPORT_FILENAME_SUFFIX = '.mp4'
+const DEFAULT_VIDEO_MIME = 'video/mp4'
 
 // ── Tool result helpers ──────────────────────────────────────
 
@@ -52,24 +69,9 @@ function errorResult(err: unknown): ToolResult {
   return { isError: true, content: [{ type: 'text', text: `Error: ${msg}` }] }
 }
 
-/**
- * Every tool follows the same pattern: get a Page, run page.evaluate, return.
- * This helper hides the try/catch + session wiring.
- */
+// ── Session + page helper ────────────────────────────────────
+
 const session = new VideoBuffSession()
-
-// Mutable progress handler — updated per-export so the CDP binding
-// (which survives across exports on the same page) always routes to
-// the *current* MCP notification channel.
-let onExportProgress: ((p: ExportProgress) => void) | null = null
-
-type ExportProgress = {
-  phase: string
-  percent: number
-  currentFrame: number
-  totalFrames: number
-  message: string
-}
 
 async function withPage<T>(fn: (page: Page) => Promise<T>): Promise<ToolResult> {
   try {
@@ -80,182 +82,108 @@ async function withPage<T>(fn: (page: Page) => Promise<T>): Promise<ToolResult> 
   }
 }
 
-// ── MCP server + tool registrations ──────────────────────────
+// ── Generic tool registration helpers ────────────────────────
+//
+// The 15 non-export tools all share the same skeleton:
+//   registerTool(name, { description, inputSchema }, (args) =>
+//     withPage(page => page.evaluate(
+//       (a) => window.videobuff![method](a),
+//       args,
+//     ))
+//   )
+// Only `description`, `inputSchema`, and the target method name vary.
+// These helpers collapse ~180 lines of repetition into declarative calls.
+//
+// NOTE: the `as unknown as` casts at the page.evaluate boundary are
+// unavoidable — Playwright serializes arguments as strings, so static
+// type safety across the boundary is lost by definition. The Zod
+// schemas validate the inputs *before* they reach this layer.
+
+/** Methods on VideoBuffAutomationAPI that take no arguments. */
+type NoArgMethod = {
+  [K in keyof VideoBuffAutomationAPI]:
+    VideoBuffAutomationAPI[K] extends () => unknown ? K : never
+}[keyof VideoBuffAutomationAPI]
+
+/** Register a tool whose underlying API method takes zero arguments. */
+function registerNoArgTool(toolName: string, opName: OperationName, method: NoArgMethod): void {
+  server.registerTool(
+    toolName,
+    { description: operations[opName].description, inputSchema: {} },
+    () =>
+      withPage((page) =>
+        page.evaluate(
+          (m: string) =>
+            (window.videobuff as unknown as Record<string, () => unknown>)[m]!(),
+          method,
+        ),
+      ),
+  )
+}
+
+/** Register a tool whose underlying API method takes a single object argument. */
+function registerArgTool(
+  toolName: string,
+  opName: OperationName,
+  schema: { shape: SchemaShape },
+  method: Exclude<keyof VideoBuffAutomationAPI, NoArgMethod | 'ready' | 'version' | 'exportToBlob'>,
+): void {
+  server.registerTool(
+    toolName,
+    { description: operations[opName].description, inputSchema: schema.shape },
+    (args: ToolArgs) =>
+      withPage((page) =>
+        page.evaluate(
+          ({ m, a }: { m: string; a: ToolArgs }) =>
+            (window.videobuff as unknown as Record<string, (x: unknown) => unknown>)[m]!(a),
+          { m: method, a: args },
+        ),
+      ),
+  )
+}
+
+// ── MCP server ────────────────────────────────────────────────
 
 const server = new McpServer(
-  { name: 'videobuff', version: '0.1.0' },
+  { name: SERVER_NAME, version: SERVER_VERSION },
   { capabilities: { tools: {} } },
 )
 
-server.registerTool(
-  'videobuff_ping',
-  { description: operations.ping.description, inputSchema: {} },
-  () => withPage(page => page.evaluate(() => window.videobuff!.ping())),
-)
+// ── Simple tools (no args) ────────────────────────────────────
 
-server.registerTool(
-  'videobuff_get_project',
-  { description: operations.getProjectInfo.description, inputSchema: {} },
-  () => withPage(page => page.evaluate(() => window.videobuff!.getProjectInfo())),
-)
+registerNoArgTool('videobuff_ping',          'ping',           'ping')
+registerNoArgTool('videobuff_get_project',   'getProjectInfo', 'getProjectInfo')
+registerNoArgTool('videobuff_get_ui_state',  'getUIState',     'getUIState')
+registerNoArgTool('videobuff_toggle_play',   'togglePlay',     'togglePlay')
+registerNoArgTool('videobuff_undo',          'undo',           'undo')
+registerNoArgTool('videobuff_redo',          'redo',           'redo')
 
-server.registerTool(
-  'videobuff_get_ui_state',
-  { description: operations.getUIState.description, inputSchema: {} },
-  () => withPage(page => page.evaluate(() => window.videobuff!.getUIState())),
-)
+// ── Tools with typed inputs ───────────────────────────────────
 
-server.registerTool(
-  'videobuff_add_text_clip',
-  {
-    description: operations.addTextClip.description,
-    inputSchema: addTextClipInputSchema.shape,
-  },
-  ({ startMs }) =>
-    withPage(page =>
-      page.evaluate((ms: number) => window.videobuff!.addTextClip({ startMs: ms }), startMs),
-    ),
-)
+registerArgTool('videobuff_add_text_clip',    'addTextClip',    addTextClipInputSchema,    'addTextClip')
+registerArgTool('videobuff_set_playhead',     'setPlayheadMs',  setPlayheadInputSchema,    'setPlayheadMs')
+registerArgTool('videobuff_select_clip',      'selectClip',     selectClipInputSchema,     'selectClip')
+registerArgTool('videobuff_remove_clip',      'removeClip',     removeClipInputSchema,     'removeClip')
+registerArgTool('videobuff_split_clip',       'splitClip',      splitClipInputSchema,      'splitClip')
+registerArgTool('videobuff_move_clip',        'moveClip',       moveClipInputSchema,       'moveClip')
+registerArgTool('videobuff_trim_clip_start',  'trimClipStart',  trimClipStartInputSchema,  'trimClipStart')
+registerArgTool('videobuff_trim_clip_end',    'trimClipEnd',    trimClipEndInputSchema,    'trimClipEnd')
+registerArgTool('videobuff_update_text_clip', 'updateTextClip', updateTextClipInputSchema, 'updateTextClip')
 
-server.registerTool(
-  'videobuff_set_playhead',
-  {
-    description: operations.setPlayheadMs.description,
-    inputSchema: setPlayheadInputSchema.shape,
-  },
-  ({ ms }) =>
-    withPage(page =>
-      page.evaluate((m: number) => window.videobuff!.setPlayheadMs({ ms: m }), ms),
-    ),
-)
+// ── Export (special — progress bridge + temp-file emission) ──
 
-server.registerTool(
-  'videobuff_toggle_play',
-  { description: operations.togglePlay.description, inputSchema: {} },
-  () => withPage(page => page.evaluate(() => window.videobuff!.togglePlay())),
-)
+type ExportProgress = {
+  phase: string
+  percent: number
+  currentFrame: number
+  totalFrames: number
+  message: string
+}
 
-// ── Clip selection ──────────────────────────────────────────
-
-server.registerTool(
-  'videobuff_select_clip',
-  {
-    description: operations.selectClip.description,
-    inputSchema: selectClipInputSchema.shape,
-  },
-  ({ clipId }) =>
-    withPage(page =>
-      page.evaluate((id: string | null) => window.videobuff!.selectClip({ clipId: id }), clipId),
-    ),
-)
-
-// ── Clip CRUD ───────────────────────────────────────────────
-
-server.registerTool(
-  'videobuff_remove_clip',
-  {
-    description: operations.removeClip.description,
-    inputSchema: removeClipInputSchema.shape,
-  },
-  ({ clipId }) =>
-    withPage(page =>
-      page.evaluate((id: string) => window.videobuff!.removeClip({ clipId: id }), clipId),
-    ),
-)
-
-server.registerTool(
-  'videobuff_split_clip',
-  {
-    description: operations.splitClip.description,
-    inputSchema: splitClipInputSchema.shape,
-  },
-  ({ clipId, splitAtMs }) =>
-    withPage(page =>
-      page.evaluate(
-        (args: { clipId: string; splitAtMs: number }) => window.videobuff!.splitClip(args),
-        { clipId, splitAtMs },
-      ),
-    ),
-)
-
-server.registerTool(
-  'videobuff_move_clip',
-  {
-    description: operations.moveClip.description,
-    inputSchema: moveClipInputSchema.shape,
-  },
-  ({ clipId, newStartMs }) =>
-    withPage(page =>
-      page.evaluate(
-        (args: { clipId: string; newStartMs: number }) => window.videobuff!.moveClip(args),
-        { clipId, newStartMs },
-      ),
-    ),
-)
-
-server.registerTool(
-  'videobuff_trim_clip_start',
-  {
-    description: operations.trimClipStart.description,
-    inputSchema: trimClipStartInputSchema.shape,
-  },
-  ({ clipId, newStartMs }) =>
-    withPage(page =>
-      page.evaluate(
-        (args: { clipId: string; newStartMs: number }) => window.videobuff!.trimClipStart(args),
-        { clipId, newStartMs },
-      ),
-    ),
-)
-
-server.registerTool(
-  'videobuff_trim_clip_end',
-  {
-    description: operations.trimClipEnd.description,
-    inputSchema: trimClipEndInputSchema.shape,
-  },
-  ({ clipId, newEndMs }) =>
-    withPage(page =>
-      page.evaluate(
-        (args: { clipId: string; newEndMs: number }) => window.videobuff!.trimClipEnd(args),
-        { clipId, newEndMs },
-      ),
-    ),
-)
-
-// ── Text clip editing ───────────────────────────────────────
-
-server.registerTool(
-  'videobuff_update_text_clip',
-  {
-    description: operations.updateTextClip.description,
-    inputSchema: updateTextClipInputSchema.shape,
-  },
-  ({ clipId, ...patch }) =>
-    withPage(page =>
-      page.evaluate(
-        (args: { clipId: string; patch: Record<string, unknown> }) =>
-          window.videobuff!.updateTextClip(args),
-        { clipId, patch },
-      ),
-    ),
-)
-
-// ── Undo / Redo ─────────────────────────────────────────────
-
-server.registerTool(
-  'videobuff_undo',
-  { description: operations.undo.description, inputSchema: {} },
-  () => withPage(page => page.evaluate(() => window.videobuff!.undo())),
-)
-
-server.registerTool(
-  'videobuff_redo',
-  { description: operations.redo.description, inputSchema: {} },
-  () => withPage(page => page.evaluate(() => window.videobuff!.redo())),
-)
-
-// ── Export ───────────────────────────────────────────────────
+// Mutable progress handler — updated per-export so the CDP binding
+// (which survives across exports on the same page) always routes to
+// the *current* MCP notification channel.
+let onExportProgress: ((p: ExportProgress) => void) | null = null
 
 server.registerTool(
   'videobuff_export',
@@ -277,15 +205,17 @@ server.registerTool(
       onExportProgress = (p) => {
         log(`export progress: ${p.phase} ${p.percent}% (${p.currentFrame}/${p.totalFrames})`)
         if (progressToken !== undefined) {
-          extra.sendNotification({
-            method: 'notifications/progress',
-            params: {
-              progressToken,
-              progress: p.currentFrame,
-              total: p.totalFrames,
-              message: `${p.phase}: ${p.percent}% — ${p.message}`,
-            },
-          }).catch(() => { /* best-effort */ })
+          extra
+            .sendNotification({
+              method: 'notifications/progress',
+              params: {
+                progressToken,
+                progress: p.currentFrame,
+                total: p.totalFrames,
+                message: `${p.phase}: ${p.percent}% — ${p.message}`,
+              },
+            })
+            .catch(() => { /* best-effort */ })
         }
       }
       try {
@@ -312,7 +242,10 @@ server.registerTool(
 
       // Decode base64 → Buffer → write to temp file
       const buf = Buffer.from(result.base64, 'base64')
-      const outPath = join(tmpdir(), `videobuff-export-${Date.now()}.mp4`)
+      const outPath = join(
+        tmpdir(),
+        `${EXPORT_FILENAME_PREFIX}${Date.now()}${EXPORT_FILENAME_SUFFIX}`,
+      )
       await writeFile(outPath, buf)
 
       return {
@@ -332,7 +265,7 @@ server.registerTool(
             type: 'resource' as const,
             resource: {
               uri: `file://${outPath}`,
-              mimeType: result.mimeType || 'video/mp4',
+              mimeType: result.mimeType || DEFAULT_VIDEO_MIME,
               text: `Exported MP4: ${outPath}`,
             },
           },
@@ -348,7 +281,10 @@ server.registerTool(
 // ── Lifecycle ────────────────────────────────────────────────
 
 function installSignalHandlers(): void {
-  const handle = async () => { await session.shutdown(); process.exit(0) }
+  const handle = async () => {
+    await session.shutdown()
+    process.exit(0)
+  }
   process.on('SIGINT', handle)
   process.on('SIGTERM', handle)
 }
@@ -361,7 +297,7 @@ async function main() {
   log('MCP server listening on stdio')
 }
 
-main().catch(e => {
+main().catch((e) => {
   log(`fatal: ${String(e)}`)
   process.exit(1)
 })
