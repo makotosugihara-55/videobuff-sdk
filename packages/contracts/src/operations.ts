@@ -23,6 +23,16 @@ import {
   trimClipStartInputSchema,
   trimClipEndInputSchema,
   updateTextClipInputSchema,
+  setProjectNameInputSchema,
+  setAspectRatioInputSchema,
+  updateClipTransformInputSchema,
+  updateClipColorGradeInputSchema,
+  updateClipTransitionInputSchema,
+  updateClipVolumeInputSchema,
+  updateClipSpeedInputSchema,
+  updateImageClipInputSchema,
+  unlinkClipInputSchema,
+  relinkClipInputSchema,
   okResultSchema,
 } from './schemas.js'
 
@@ -115,6 +125,56 @@ export const operations = {
   redo: {
     description: 'Redo the last undone action.',
     input: z.object({}),
+    output: okResultSchema,
+  },
+  setProjectName: {
+    description: 'Set the project name.',
+    input: setProjectNameInputSchema,
+    output: okResultSchema,
+  },
+  setAspectRatio: {
+    description: 'Set the project aspect ratio (16:9, 9:16, 1:1, 4:3).',
+    input: setAspectRatioInputSchema,
+    output: okResultSchema,
+  },
+  updateClipTransform: {
+    description: 'Update clip transform (position, rotation, scale, opacity, crop).',
+    input: updateClipTransformInputSchema,
+    output: okResultSchema,
+  },
+  updateClipColorGrade: {
+    description: 'Update clip color grading (exposure, contrast, saturation, etc.).',
+    input: updateClipColorGradeInputSchema,
+    output: okResultSchema,
+  },
+  updateClipTransition: {
+    description: 'Update the base transition on a clip (type, durationMs).',
+    input: updateClipTransitionInputSchema,
+    output: okResultSchema,
+  },
+  updateClipVolume: {
+    description: 'Set clip audio volume (0-1).',
+    input: updateClipVolumeInputSchema,
+    output: okResultSchema,
+  },
+  updateClipSpeed: {
+    description: 'Update clip playback speed (rate, ramp, range).',
+    input: updateClipSpeedInputSchema,
+    output: okResultSchema,
+  },
+  updateImageClip: {
+    description: 'Update image clip properties (opacity, blendMode, borderRadius).',
+    input: updateImageClipInputSchema,
+    output: okResultSchema,
+  },
+  unlinkClip: {
+    description: 'Unlink a video/audio clip pair so they move independently.',
+    input: unlinkClipInputSchema,
+    output: okResultSchema,
+  },
+  relinkClip: {
+    description: 'Re-link a previously unlinked clip to its sibling.',
+    input: relinkClipInputSchema,
     output: okResultSchema,
   },
 } as const satisfies Record<string, OperationDef>

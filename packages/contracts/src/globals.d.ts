@@ -9,6 +9,20 @@
 /** Shared `{ ok: true }` return type for mutation methods. */
 type OkResult = { readonly ok: true }
 
+/** Aspect ratio options supported by the project. */
+type AspectRatio = '16:9' | '9:16' | '1:1' | '4:3'
+
+/** All transitions that can be applied to a clip edge. */
+type TransitionType =
+  | 'none' | 'dissolve' | 'fade-black' | 'fade-white'
+  | 'blur' | 'zoom' | 'wipe' | 'typewriter'
+
+/** Compositing blend modes for image clips. */
+type BlendMode =
+  | 'normal' | 'multiply' | 'screen' | 'overlay'
+  | 'darken' | 'lighten' | 'color-dodge' | 'color-burn'
+  | 'hard-light' | 'soft-light' | 'difference' | 'exclusion'
+
 export interface VideoBuffAutomationAPI {
   readonly ready: true
   readonly version: string
@@ -35,6 +49,30 @@ export interface VideoBuffAutomationAPI {
   updateTextClip: (input: { clipId: string; [key: string]: unknown }) => OkResult
   undo: () => OkResult
   redo: () => OkResult
+
+  // ── Phase 1 — project settings & clip properties ──────────────
+  setProjectName: (input: { name: string }) => OkResult
+  setAspectRatio: (input: { aspectRatio: AspectRatio }) => OkResult
+  // Flat shape: `clipId` + any subset of Transform fields.
+  updateClipTransform: (input: { clipId: string; [key: string]: unknown }) => OkResult
+  // Flat shape: `clipId` + any subset of ColorGrade fields.
+  updateClipColorGrade: (input: { clipId: string; [key: string]: unknown }) => OkResult
+  updateClipTransition: (input: {
+    clipId: string
+    type?: TransitionType
+    durationMs?: number
+  }) => OkResult
+  updateClipVolume: (input: { clipId: string; volume: number }) => OkResult
+  // Flat shape: `clipId` + any subset of SpeedConfig fields.
+  updateClipSpeed: (input: { clipId: string; [key: string]: unknown }) => OkResult
+  updateImageClip: (input: {
+    clipId: string
+    opacity?: number
+    blendMode?: BlendMode
+    borderRadius?: number
+  }) => OkResult
+  unlinkClip: (input: { clipId: string }) => OkResult
+  relinkClip: (input: { clipId: string }) => OkResult
 }
 
 declare global {

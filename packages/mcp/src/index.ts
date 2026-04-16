@@ -31,6 +31,16 @@ import {
   trimClipStartInputSchema,
   trimClipEndInputSchema,
   updateTextClipInputSchema,
+  setProjectNameInputSchema,
+  setAspectRatioInputSchema,
+  updateClipTransformInputSchema,
+  updateClipColorGradeInputSchema,
+  updateClipTransitionInputSchema,
+  updateClipVolumeInputSchema,
+  updateClipSpeedInputSchema,
+  updateImageClipInputSchema,
+  unlinkClipInputSchema,
+  relinkClipInputSchema,
   type VideoBuffAutomationAPI,
 } from '@videobuff/contracts'
 import { VideoBuffSession, log } from '@videobuff/core'
@@ -169,6 +179,19 @@ registerArgTool('videobuff_move_clip',        'moveClip',       moveClipInputSch
 registerArgTool('videobuff_trim_clip_start',  'trimClipStart',  trimClipStartInputSchema,  'trimClipStart')
 registerArgTool('videobuff_trim_clip_end',    'trimClipEnd',    trimClipEndInputSchema,    'trimClipEnd')
 registerArgTool('videobuff_update_text_clip', 'updateTextClip', updateTextClipInputSchema, 'updateTextClip')
+
+// ── Phase 1: project settings & clip properties ──────────────
+
+registerArgTool('videobuff_set_project_name',       'setProjectName',       setProjectNameInputSchema,       'setProjectName')
+registerArgTool('videobuff_set_aspect_ratio',       'setAspectRatio',       setAspectRatioInputSchema,       'setAspectRatio')
+registerArgTool('videobuff_update_clip_transform',  'updateClipTransform',  updateClipTransformInputSchema,  'updateClipTransform')
+registerArgTool('videobuff_update_clip_color',      'updateClipColorGrade', updateClipColorGradeInputSchema, 'updateClipColorGrade')
+registerArgTool('videobuff_update_clip_transition', 'updateClipTransition', updateClipTransitionInputSchema, 'updateClipTransition')
+registerArgTool('videobuff_update_clip_volume',     'updateClipVolume',     updateClipVolumeInputSchema,     'updateClipVolume')
+registerArgTool('videobuff_update_clip_speed',      'updateClipSpeed',      updateClipSpeedInputSchema,      'updateClipSpeed')
+registerArgTool('videobuff_update_image_clip',      'updateImageClip',      updateImageClipInputSchema,      'updateImageClip')
+registerArgTool('videobuff_unlink_clip',            'unlinkClip',           unlinkClipInputSchema,           'unlinkClip')
+registerArgTool('videobuff_relink_clip',            'relinkClip',           relinkClipInputSchema,           'relinkClip')
 
 // ── Export (special — progress bridge + temp-file emission) ──
 
