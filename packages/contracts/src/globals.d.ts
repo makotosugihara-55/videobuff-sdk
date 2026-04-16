@@ -23,6 +23,11 @@ type SelectClipResult =
   | { readonly ok: true; readonly selectedClipId: string | null }
   | { readonly ok: false; readonly reason: string }
 
+/** `addAssetToTimeline` result — see `schemas.ts#addAssetToTimelineResultSchema`. */
+type AddAssetToTimelineResult =
+  | { readonly ok: true; readonly clipId: string | null }
+  | { readonly ok: false; readonly reason: string }
+
 /** Aspect ratio options supported by the project. */
 type AspectRatio = '16:9' | '9:16' | '1:1' | '4:3'
 
@@ -119,6 +124,14 @@ export interface VideoBuffAutomationAPI {
   // Fails with `assetNotFound` for a missing id, `assetInUse` when any
   // clip still references the asset. See bootstrap.ts for rationale.
   removeAsset: (input: { assetId: string }) => OkResult
+  // Place an already-imported asset on the timeline. Returns the new
+  // clipId (the video half for video assets) or `assetNotFound`.
+  addAssetToTimeline: (input: { assetId: string }) => AddAssetToTimelineResult
+
+  // ── Project lifecycle ───────────────────────────────────────
+  // Replace the current project with a fresh empty one. Revokes asset
+  // blob URLs and clears the undo history. Always succeeds.
+  resetProject: () => OkResult
 }
 
 declare global {

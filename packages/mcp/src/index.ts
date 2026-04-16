@@ -48,6 +48,7 @@ import {
   updateClipAudioEffectInputSchema,
   importAssetsInputSchema,
   removeAssetInputSchema,
+  addAssetToTimelineInputSchema,
   type VideoBuffAutomationAPI,
 } from '@videobuff/contracts'
 import { VideoBuffSession, log } from '@videobuff/core'
@@ -195,12 +196,13 @@ const server = new McpServer(
 
 // ── Simple tools (no args) ────────────────────────────────────
 
-registerNoArgTool('videobuff_ping',          'ping',           'ping')
-registerNoArgTool('videobuff_get_project',   'getProjectInfo', 'getProjectInfo')
-registerNoArgTool('videobuff_get_ui_state',  'getUIState',     'getUIState')
-registerNoArgTool('videobuff_toggle_play',   'togglePlay',     'togglePlay')
-registerNoArgTool('videobuff_undo',          'undo',           'undo')
-registerNoArgTool('videobuff_redo',          'redo',           'redo')
+registerNoArgTool('videobuff_ping',           'ping',           'ping')
+registerNoArgTool('videobuff_get_project',    'getProjectInfo', 'getProjectInfo')
+registerNoArgTool('videobuff_get_ui_state',   'getUIState',     'getUIState')
+registerNoArgTool('videobuff_toggle_play',    'togglePlay',     'togglePlay')
+registerNoArgTool('videobuff_undo',           'undo',           'undo')
+registerNoArgTool('videobuff_redo',           'redo',           'redo')
+registerNoArgTool('videobuff_reset_project',  'resetProject',   'resetProject')
 
 // ── Tools with typed inputs ───────────────────────────────────
 
@@ -238,6 +240,7 @@ registerArgTool('videobuff_update_clip_audio_effect',       'updateClipAudioEffe
 // ── Asset management ─────────────────────────────────────────
 
 registerArgTool('videobuff_remove_asset',                   'removeAsset',                 removeAssetInputSchema,                 'removeAsset')
+registerArgTool('videobuff_add_asset_to_timeline',          'addAssetToTimeline',          addAssetToTimelineInputSchema,          'addAssetToTimeline')
 
 // ── Asset import (special — drives hidden file input via Playwright) ─
 //

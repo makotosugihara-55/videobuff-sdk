@@ -41,6 +41,8 @@ import {
   importAssetsInputSchema,
   importAssetsResultSchema,
   removeAssetInputSchema,
+  addAssetToTimelineInputSchema,
+  addAssetToTimelineResultSchema,
   okResultSchema,
 } from './schemas.js'
 
@@ -221,6 +223,16 @@ export const operations = {
   removeAsset: {
     description: 'Remove an asset from the library. Fails with assetInUse if any clip still references it — remove dependent clips first.',
     input: removeAssetInputSchema,
+    output: okResultSchema,
+  },
+  addAssetToTimeline: {
+    description: 'Place an already-imported asset on the timeline. Returns the new clipId (the video half for video assets). Fails with assetNotFound if the id is missing.',
+    input: addAssetToTimelineInputSchema,
+    output: addAssetToTimelineResultSchema,
+  },
+  resetProject: {
+    description: 'Replace the current project with a fresh empty one. Revokes asset blob URLs and clears the undo history. Always succeeds.',
+    input: z.object({}),
     output: okResultSchema,
   },
 } as const satisfies Record<string, OperationDef>

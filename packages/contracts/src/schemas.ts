@@ -343,6 +343,19 @@ export const removeAssetInputSchema = z.object({
   assetId: z.string().min(1),
 })
 
+/**
+ * `videobuff_add_asset_to_timeline` — place an already-imported asset
+ * on the timeline as a new clip. Returns `assetNotFound` if `assetId`
+ * doesn't resolve in `project.assets`; on success the new clip's id
+ * is returned via `addAssetToTimelineResultSchema`.
+ *
+ * Import of local files is a separate op (`importAssets`) — this one
+ * operates strictly on ids already in the library.
+ */
+export const addAssetToTimelineInputSchema = z.object({
+  assetId: z.string().min(1),
+})
+
 // ── Output schemas ─────────────────────────────────────────────
 
 export const exportSettingsSchema = z.object({
@@ -416,5 +429,19 @@ export const okResultSchema = z.discriminatedUnion('ok', [
  */
 export const selectClipResultSchema = z.discriminatedUnion('ok', [
   z.object({ ok: z.literal(true), selectedClipId: z.string().nullable() }),
+  z.object({ ok: z.literal(false), reason: z.string() }),
+])
+
+/**
+ * `addAssetToTimeline` result — discriminated like `okResultSchema` but
+ * the success variant surfaces the id of the newly-placed clip so the
+ * caller can chain subsequent edits without a `getProjectInfo`
+ * round-trip.
+ *
+ * Failure path: `{ok:false, reason:"assetNotFound"}` when the requested
+ * `assetId` isn't in `project.assets`.
+ */
+export const addAssetToTimelineResultSchema = z.discriminatedUnion('ok', [
+  z.object({ ok: z.literal(true), clipId: z.string().nullable() }),
   z.object({ ok: z.literal(false), reason: z.string() }),
 ])
