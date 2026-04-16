@@ -38,7 +38,7 @@ import {
  * Default endpoint. Override with VIDEOBUFF_TELEMETRY_URL for
  * self-hosted forks / local dev.
  */
-const DEFAULT_ENDPOINT = 'https://videobuff.com/api/telemetry/events'
+const DEFAULT_ENDPOINT = 'https://videobuff.app/api/telemetry/events'
 
 /** Flush when buffer hits this many events (or on exit). */
 const BUFFER_FLUSH_THRESHOLD = 20
