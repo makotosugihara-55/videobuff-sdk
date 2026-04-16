@@ -28,6 +28,7 @@ import {
   type VideoBuffAutomationAPI,
 } from '@videobuff/contracts'
 import { VideoBuffSession, log } from '@videobuff/core'
+import { initTelemetry, shutdownTelemetry, trackToolCall } from './telemetry.js'
 
 type ToolArgs = Record<string, unknown>
 
@@ -185,6 +186,62 @@ async function withPage<T>(fn: (page: Page) => Promise<T>): Promise<ToolResult> 
   }
 }
 
+// ── Telemetry wrapper ───────────────────────────────────────
+//
+// Wraps any async tool handler to emit a `tool_call` event with
+// outcome + coarse duration bucket. Telemetry failures can never break
+// the tool call — the wrapper only reads the returned `ToolResult` to
+// distinguish ok vs error outcomes.
+//
+// Error classification: we only have the message string to go on (the
+// MCP surface is coarse), so we bucket on substrings. The dashboard
+// treats `other` as the catch-all.
+function classifyError(msg: string): 'timeout' | 'validation' | 'page_eval' | 'session_lost' | 'other' {
+  const m = msg.toLowerCase()
+  if (m.includes('timeout') || m.includes('timed out')) return 'timeout'
+  if (m.includes('zod') || m.includes('invalid') || m.includes('must be')) return 'validation'
+  if (m.includes('target closed') || m.includes('browser has been closed')) return 'session_lost'
+  if (m.includes('evaluate') || m.includes('page.evaluate')) return 'page_eval'
+  return 'other'
+}
+
+/**
+ * Generic MCP-tool-result shape we inspect — narrower than the SDK's
+ * full union but wider than our local `ToolResult` so the export tool
+ * (which returns `resource` content blocks) type-checks too.
+ */
+type AnyToolResult = {
+  isError?: boolean
+  content: ReadonlyArray<{ type: string; text?: string } & Record<string, unknown>>
+  [x: string]: unknown
+}
+
+function withTelemetry<TArgs extends unknown[], TResult extends AnyToolResult>(
+  toolName: string,
+  handler: (...args: TArgs) => Promise<TResult>,
+): (...args: TArgs) => Promise<TResult> {
+  return async (...args: TArgs) => {
+    const t0 = Date.now()
+    let result: TResult
+    try {
+      result = await handler(...args)
+    } catch (e) {
+      // handler shouldn't throw (withPage/errorResult catch), but be safe
+      const msg = e instanceof Error ? e.message : String(e)
+      trackToolCall(toolName, 'error', Date.now() - t0, classifyError(msg))
+      throw e
+    }
+    const dur = Date.now() - t0
+    if (result.isError) {
+      const firstText = result.content.find((c) => c.type === 'text')?.text ?? ''
+      trackToolCall(toolName, 'error', dur, classifyError(firstText))
+    } else {
+      trackToolCall(toolName, 'ok', dur)
+    }
+    return result
+  }
+}
+
 // ── Generic tool registration helpers ────────────────────────
 //
 // The 20+ non-export tools all share the same skeleton:
@@ -263,7 +320,7 @@ function registerNoArgTool(toolName: string, op: NoArgMethod): void {
   server.registerTool(
     toolName,
     { description: operations[op].description, inputSchema: {} },
-    () =>
+    withTelemetry(toolName, () =>
       withPage((page) =>
         page.evaluate(
           (m: string) => {
@@ -273,6 +330,7 @@ function registerNoArgTool(toolName: string, op: NoArgMethod): void {
           op,
         ),
       ),
+    ),
   )
 }
 
@@ -288,7 +346,7 @@ function registerArgTool(toolName: string, op: ArgMethod): void {
   server.registerTool(
     toolName,
     { description: operations[op].description, inputSchema: operations[op].input.shape },
-    (args: ToolArgs) =>
+    withTelemetry(toolName, (args: ToolArgs) =>
       withPage((page) =>
         page.evaluate(
           ({ m, a }: { m: string; a: ToolArgs }) => {
@@ -298,6 +356,7 @@ function registerArgTool(toolName: string, op: ArgMethod): void {
           { m: op, a: args },
         ),
       ),
+    ),
   )
 }
 
@@ -381,7 +440,7 @@ server.registerTool(
     description: operations.importAssets.description,
     inputSchema: importAssetsInputSchema.shape,
   },
-  async (args: ToolArgs) => {
+  withTelemetry('videobuff_import_assets', async (args: ToolArgs) => {
     try {
       const { page } = await session.get()
       const { paths } = args as { paths: string[] }
@@ -429,7 +488,7 @@ server.registerTool(
     } catch (e) {
       return errorResult(e)
     }
-  },
+  }),
 )
 
 // ── Export (special — progress bridge + temp-file emission) ──
@@ -453,7 +512,7 @@ server.registerTool(
     description: operations.exportToBlob.description,
     inputSchema: exportToBlobInputSchema.shape,
   },
-  async (args, extra) => {
+  withTelemetry('videobuff_export', async (args, extra) => {
     try {
       const { page } = await session.get()
       log('starting export…')
@@ -547,13 +606,16 @@ server.registerTool(
       onExportProgress = null
       return errorResult(e)
     }
-  },
+  }),
 )
 
 // ── Lifecycle ────────────────────────────────────────────────
 
 function installSignalHandlers(): void {
   const handle = async () => {
+    // Best-effort telemetry flush before tearing down the browser session.
+    // shutdownTelemetry is a no-op if disabled/uninitialized.
+    try { await shutdownTelemetry() } catch { /* never block exit */ }
     await session.shutdown()
     process.exit(0)
   }
@@ -564,6 +626,11 @@ function installSignalHandlers(): void {
 installSignalHandlers()
 
 async function main() {
+  // Fire up telemetry first so session_start is emitted before any
+  // tool calls. If the user opted out (VIDEOBUFF_TELEMETRY=0) or the
+  // HOME dir is unwritable, init degrades to a no-op.
+  await initTelemetry({ mcpVersion: SERVER_VERSION })
+
   // Eagerly warm the Playwright session in parallel with the MCP
   // handshake. The first tool call then pays only the difference
   // between "Chromium launch + page.goto + window.videobuff.ready" and
