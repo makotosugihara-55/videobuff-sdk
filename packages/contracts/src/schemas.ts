@@ -29,12 +29,23 @@ export const EXPORT_LIMITS = {
 // stringify numeric tool args during JSON-RPC serialization. Coercing at
 // the schema boundary keeps the public API LLM-friendly without leaking
 // string handling into domain code.
-//
-// NOTE — we deliberately do NOT coerce booleans. `Boolean("false")` is
-// `true` in JS because a non-empty string is truthy, so `z.coerce.boolean()`
-// silently turns the string `"false"` into `true` — a subtle foot-gun that
-// JSON-correct callers (which send real booleans) never need anyway.
 const intMs = () => z.coerce.number().int().min(0)
+
+/**
+ * Safe boolean coercion — accepts real booleans and the exact strings
+ * `"true"` / `"false"`, rejecting everything else. Avoids the
+ * `z.coerce.boolean()` foot-gun where `Boolean("false") === true`
+ * turns a stringified `false` into `true` silently.
+ *
+ * Needed because some MCP clients (incl. Claude Code) occasionally
+ * send booleans as strings over JSON-RPC.
+ */
+const bool = () =>
+  z.preprocess((v) => {
+    if (v === 'true') return true
+    if (v === 'false') return false
+    return v
+  }, z.boolean())
 
 export const exportToBlobInputSchema = z.object({
   width:          z.coerce.number().int().min(EXPORT_LIMITS.width.min).max(EXPORT_LIMITS.width.max).optional(),
@@ -88,10 +99,8 @@ export const updateTextClipInputSchema = z.object({
   fontFamily: z.string().optional(),
   fontSize: z.coerce.number().min(1).optional(),
   color: z.string().optional(),
-  // Real booleans only — see the `intMs` comment above for why we do not
-  // use `z.coerce.boolean()` here.
-  bold: z.boolean().optional(),
-  italic: z.boolean().optional(),
+  bold: bool().optional(),
+  italic: bool().optional(),
   textAlign: z.enum(['left', 'center', 'right']).optional(),
   positionX: z.coerce.number().optional(),
   positionY: z.coerce.number().optional(),
