@@ -29,6 +29,11 @@ export const EXPORT_LIMITS = {
 // stringify numeric tool args during JSON-RPC serialization. Coercing at
 // the schema boundary keeps the public API LLM-friendly without leaking
 // string handling into domain code.
+//
+// NOTE — we deliberately do NOT coerce booleans. `Boolean("false")` is
+// `true` in JS because a non-empty string is truthy, so `z.coerce.boolean()`
+// silently turns the string `"false"` into `true` — a subtle foot-gun that
+// JSON-correct callers (which send real booleans) never need anyway.
 const intMs = () => z.coerce.number().int().min(0)
 
 export const exportToBlobInputSchema = z.object({
@@ -83,8 +88,10 @@ export const updateTextClipInputSchema = z.object({
   fontFamily: z.string().optional(),
   fontSize: z.coerce.number().min(1).optional(),
   color: z.string().optional(),
-  bold: z.coerce.boolean().optional(),
-  italic: z.coerce.boolean().optional(),
+  // Real booleans only — see the `intMs` comment above for why we do not
+  // use `z.coerce.boolean()` here.
+  bold: z.boolean().optional(),
+  italic: z.boolean().optional(),
   textAlign: z.enum(['left', 'center', 'right']).optional(),
   positionX: z.coerce.number().optional(),
   positionY: z.coerce.number().optional(),
