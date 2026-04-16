@@ -329,7 +329,25 @@ export const togglePlayResultSchema = z.object({
   isPlaying: z.boolean(),
 })
 
-export const okResultSchema = z.object({ ok: z.literal(true) })
+/**
+ * Result shape for mutation tools.
+ *
+ * Discriminated on `ok` so LLM callers can branch reliably:
+ *   - `{ ok: true }`                            — applied
+ *   - `{ ok: false, reason: 'clipNotFound' }`   — requested clip id doesn't exist
+ *
+ * Historically this was `{ ok: true }` only: the web-side store's
+ * `mapClipById` helper silently returned tracks unchanged for an unknown
+ * id, surfacing as a false success. Making misses explicit lets agents
+ * recover (e.g. re-fetch `getProjectInfo` and retry with a fresh id).
+ *
+ * `reason` is a free-form string so new failure modes can be added
+ * without breaking schema compatibility for existing clients.
+ */
+export const okResultSchema = z.discriminatedUnion('ok', [
+  z.object({ ok: z.literal(true) }),
+  z.object({ ok: z.literal(false), reason: z.string() }),
+])
 
 export const selectClipResultSchema = z.object({
   selectedClipId: z.string().nullable(),
