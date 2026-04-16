@@ -57,6 +57,16 @@ const bool = () =>
     return v
   }, z.boolean())
 
+// Common numeric-range helpers used across the clip-update schemas.
+// These encode recurring editor-domain ranges as single-call builders so
+// individual schema definitions read declaratively. Scoped to this file
+// (not exported) because they're implementation detail — the boundary
+// contract is the input schemas themselves.
+const num = () => z.coerce.number()
+const bipolar100  = () => num().min(-100).max(100) // -100..+100 (most color dials)
+const unipolar100 = () => num().min(0).max(100)    // 0..100 (opacity %, vignette, …)
+const unit        = () => num().min(0).max(1)      // 0..1 (volume, normalized range)
+
 export const exportToBlobInputSchema = z.object({
   width:          z.coerce.number().int().min(EXPORT_LIMITS.width.min).max(EXPORT_LIMITS.width.max).optional(),
   height:         z.coerce.number().int().min(EXPORT_LIMITS.height.min).max(EXPORT_LIMITS.height.max).optional(),
@@ -107,21 +117,21 @@ export const updateTextClipInputSchema = z.object({
   clipId: z.string(),
   text: z.string().optional(),
   fontFamily: z.string().optional(),
-  fontSize: z.coerce.number().min(1).optional(),
+  fontSize: num().min(1).optional(),
   color: z.string().optional(),
   bold: bool().optional(),
   italic: bool().optional(),
   textAlign: textAlignSchema.optional(),
-  positionX: z.coerce.number().optional(),
-  positionY: z.coerce.number().optional(),
+  positionX: num().optional(),
+  positionY: num().optional(),
   backgroundColor: z.string().optional(),
   outlineColor: z.string().optional(),
-  outlineWidth: z.coerce.number().min(0).optional(),
+  outlineWidth: num().min(0).optional(),
   shadowColor: z.string().optional(),
-  shadowBlur: z.coerce.number().min(0).optional(),
-  shadowOffsetX: z.coerce.number().optional(),
-  shadowOffsetY: z.coerce.number().optional(),
-  opacity: z.coerce.number().min(0).max(1).optional(),
+  shadowBlur: num().min(0).optional(),
+  shadowOffsetX: num().optional(),
+  shadowOffsetY: num().optional(),
+  opacity: num().min(0).max(1).optional(),
 })
 
 // ── Phase 1: project / clip properties ─────────────────────────
@@ -137,58 +147,58 @@ export const setAspectRatioInputSchema = z.object({
 /** Transform fields — positions in px from center, scales in %, crops 0-50%. */
 export const updateClipTransformInputSchema = z.object({
   clipId: z.string(),
-  positionX: z.coerce.number().optional(),
-  positionY: z.coerce.number().optional(),
-  rotation: z.coerce.number().min(-180).max(180).optional(),
-  opacity: z.coerce.number().min(0).max(100).optional(),
-  scaleX: z.coerce.number().min(0).max(200).optional(),
-  scaleY: z.coerce.number().min(0).max(200).optional(),
+  positionX: num().optional(),
+  positionY: num().optional(),
+  rotation: num().min(-180).max(180).optional(),
+  opacity: unipolar100().optional(),
+  scaleX: num().min(0).max(200).optional(),
+  scaleY: num().min(0).max(200).optional(),
   keepAspectRatio: bool().optional(),
-  cropTop: z.coerce.number().min(0).max(50).optional(),
-  cropBottom: z.coerce.number().min(0).max(50).optional(),
-  cropLeft: z.coerce.number().min(0).max(50).optional(),
-  cropRight: z.coerce.number().min(0).max(50).optional(),
+  cropTop: num().min(0).max(50).optional(),
+  cropBottom: num().min(0).max(50).optional(),
+  cropLeft: num().min(0).max(50).optional(),
+  cropRight: num().min(0).max(50).optional(),
 })
 
-/** ColorGrade — most fields are bipolar -100..+100, a few are 0..100. */
+/** ColorGrade — bipolar -100..+100 basics, unipolar 0..100 detail/effect. */
 export const updateClipColorGradeInputSchema = z.object({
   clipId: z.string(),
-  exposure: z.coerce.number().min(-100).max(100).optional(),
-  contrast: z.coerce.number().min(-100).max(100).optional(),
-  highlights: z.coerce.number().min(-100).max(100).optional(),
-  shadows: z.coerce.number().min(-100).max(100).optional(),
-  temperature: z.coerce.number().min(-100).max(100).optional(),
-  tint: z.coerce.number().min(-100).max(100).optional(),
-  vibrance: z.coerce.number().min(-100).max(100).optional(),
-  saturation: z.coerce.number().min(-100).max(100).optional(),
-  fadedFilm: z.coerce.number().min(0).max(100).optional(),
-  sharpness: z.coerce.number().min(0).max(100).optional(),
-  vignetteAmount: z.coerce.number().min(0).max(100).optional(),
-  vignetteBlur: z.coerce.number().min(0).max(100).optional(),
-  blur: z.coerce.number().min(0).max(100).optional(),
+  exposure:       bipolar100().optional(),
+  contrast:       bipolar100().optional(),
+  highlights:     bipolar100().optional(),
+  shadows:        bipolar100().optional(),
+  temperature:    bipolar100().optional(),
+  tint:           bipolar100().optional(),
+  vibrance:       bipolar100().optional(),
+  saturation:     bipolar100().optional(),
+  fadedFilm:      unipolar100().optional(),
+  sharpness:      unipolar100().optional(),
+  vignetteAmount: unipolar100().optional(),
+  vignetteBlur:   unipolar100().optional(),
+  blur:           unipolar100().optional(),
 })
 
 /** Base transition (shared by both edges). durationMs is clamped 100..3000. */
 export const updateClipTransitionInputSchema = z.object({
   clipId: z.string(),
   type: transitionTypeSchema.optional(),
-  durationMs: z.coerce.number().int().min(100).max(3000).optional(),
+  durationMs: num().int().min(100).max(3000).optional(),
 })
 
 export const updateClipVolumeInputSchema = z.object({
   clipId: z.string(),
-  volume: z.coerce.number().min(0).max(1),
+  volume: unit(),
 })
 
 /** Playback speed + optional ramp (ease-in/out between rangeStart..rangeEnd). */
 export const updateClipSpeedInputSchema = z.object({
   clipId: z.string(),
-  rate: z.coerce.number().min(0.1).max(10).optional(),
+  rate: num().min(0.1).max(10).optional(),
   ramp: bool().optional(),
   rampDurationMs: intMs().optional(),
   preservePitch: bool().optional(),
-  rangeStart: z.coerce.number().min(0).max(1).optional(),
-  rangeEnd: z.coerce.number().min(0).max(1).optional(),
+  rangeStart: unit().optional(),
+  rangeEnd:   unit().optional(),
 })
 
 /**
@@ -202,9 +212,9 @@ export const updateClipSpeedInputSchema = z.object({
  */
 export const updateImageClipInputSchema = z.object({
   clipId: z.string(),
-  opacity: z.coerce.number().min(0).max(100).optional(),
+  opacity: unipolar100().optional(),
   blendMode: blendModeSchema.optional(),
-  borderRadius: z.coerce.number().min(0).max(50).optional(),
+  borderRadius: num().min(0).max(50).optional(),
 })
 
 export const unlinkClipInputSchema = z.object({

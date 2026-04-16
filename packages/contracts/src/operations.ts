@@ -127,43 +127,46 @@ export const operations = {
     input: z.object({}),
     output: okResultSchema,
   },
+  // Descriptions intentionally terse — LLM clients see field names and
+  // enum values directly from the JSON schema, so listing them here is
+  // duplicated tokens. Keep only non-obvious context.
   setProjectName: {
     description: 'Set the project name.',
     input: setProjectNameInputSchema,
     output: okResultSchema,
   },
   setAspectRatio: {
-    description: 'Set the project aspect ratio (16:9, 9:16, 1:1, 4:3).',
+    description: 'Set the project aspect ratio.',
     input: setAspectRatioInputSchema,
     output: okResultSchema,
   },
   updateClipTransform: {
-    description: 'Update clip transform (position, rotation, scale, opacity, crop).',
+    description: 'Update clip transform (position, scale, rotation, crop).',
     input: updateClipTransformInputSchema,
     output: okResultSchema,
   },
   updateClipColorGrade: {
-    description: 'Update clip color grading (exposure, contrast, saturation, etc.).',
+    description: 'Update clip color grading.',
     input: updateClipColorGradeInputSchema,
     output: okResultSchema,
   },
   updateClipTransition: {
-    description: 'Update the base transition on a clip (type, durationMs).',
+    description: 'Update the base transition on a clip.',
     input: updateClipTransitionInputSchema,
     output: okResultSchema,
   },
   updateClipVolume: {
-    description: 'Set clip audio volume (0-1).',
+    description: 'Set clip audio volume.',
     input: updateClipVolumeInputSchema,
     output: okResultSchema,
   },
   updateClipSpeed: {
-    description: 'Update clip playback speed (rate, ramp, range).',
+    description: 'Update clip playback speed.',
     input: updateClipSpeedInputSchema,
     output: okResultSchema,
   },
   updateImageClip: {
-    description: 'Update image clip properties (opacity, blendMode, borderRadius).',
+    description: 'Update image clip properties.',
     input: updateImageClipInputSchema,
     output: okResultSchema,
   },
