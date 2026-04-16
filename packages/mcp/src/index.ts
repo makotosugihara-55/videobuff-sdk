@@ -586,6 +586,27 @@ function installSignalHandlers(): void {
 installSignalHandlers()
 
 async function main() {
+  // Eagerly warm the Playwright session in parallel with the MCP
+  // handshake. The first tool call then pays only the difference
+  // between "Chromium launch + page.goto + window.videobuff.ready" and
+  // "MCP handshake + listTools + first tool dispatch". In benchmark
+  // runs the MCP handshake takes ~400–550ms and Chromium warm launch
+  // takes ~500–1000ms, so the first tool call ends up ~0–500ms instead
+  // of 580–2800ms.
+  //
+  // If warmup fails (e.g. dev server not running yet), VideoBuffSession
+  // clears the stale promise so the first real tool call re-launches
+  // and surfaces the error through errorResult — identical behaviour
+  // to the pre-warmup code path, just earlier. Set VIDEOBUFF_LAZY=1 to
+  // disable (useful for CI that only wants to validate the tool list).
+  if (process.env.VIDEOBUFF_LAZY !== '1') {
+    void session.get().catch(() => {
+      // Intentionally swallowed — VideoBuffSession.get() has already
+      // logged the failure and cleared its internal promise. The next
+      // real `session.get()` from a tool call will retry and report.
+    })
+  }
+
   const transport = new StdioServerTransport()
   await server.connect(transport)
   log('MCP server listening on stdio')
