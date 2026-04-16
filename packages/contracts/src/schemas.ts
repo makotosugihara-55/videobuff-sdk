@@ -24,22 +24,29 @@ export const EXPORT_LIMITS = {
 
 // ── Input schemas ──────────────────────────────────────────────
 
+// z.coerce.number() accepts both JSON numbers and numeric strings. This
+// matters because some MCP clients (incl. Claude Code) occasionally
+// stringify numeric tool args during JSON-RPC serialization. Coercing at
+// the schema boundary keeps the public API LLM-friendly without leaking
+// string handling into domain code.
+const intMs = () => z.coerce.number().int().min(0)
+
 export const exportToBlobInputSchema = z.object({
-  width:          z.number().int().min(EXPORT_LIMITS.width.min).max(EXPORT_LIMITS.width.max).optional(),
-  height:         z.number().int().min(EXPORT_LIMITS.height.min).max(EXPORT_LIMITS.height.max).optional(),
-  fps:            z.number().int().min(EXPORT_LIMITS.fps.min).max(EXPORT_LIMITS.fps.max).optional(),
+  width:          z.coerce.number().int().min(EXPORT_LIMITS.width.min).max(EXPORT_LIMITS.width.max).optional(),
+  height:         z.coerce.number().int().min(EXPORT_LIMITS.height.min).max(EXPORT_LIMITS.height.max).optional(),
+  fps:            z.coerce.number().int().min(EXPORT_LIMITS.fps.min).max(EXPORT_LIMITS.fps.max).optional(),
   videoCodec:     videoCodecSchema.optional(),
-  videoBitrate:   z.number().int().min(EXPORT_LIMITS.videoBitrate.min).max(EXPORT_LIMITS.videoBitrate.max).optional(),
+  videoBitrate:   z.coerce.number().int().min(EXPORT_LIMITS.videoBitrate.min).max(EXPORT_LIMITS.videoBitrate.max).optional(),
   loudnessTarget: loudnessTargetSchema.optional(),
-  timeoutMs:      z.number().int().min(EXPORT_LIMITS.timeoutMs.min).max(EXPORT_LIMITS.timeoutMs.max).optional(),
+  timeoutMs:      z.coerce.number().int().min(EXPORT_LIMITS.timeoutMs.min).max(EXPORT_LIMITS.timeoutMs.max).optional(),
 }).optional()
 
 export const addTextClipInputSchema = z.object({
-  startMs: z.number().int().min(0),
+  startMs: intMs(),
 })
 
 export const setPlayheadInputSchema = z.object({
-  ms: z.number().int().min(0),
+  ms: intMs(),
 })
 
 export const selectClipInputSchema = z.object({
@@ -52,43 +59,43 @@ export const removeClipInputSchema = z.object({
 
 export const splitClipInputSchema = z.object({
   clipId: z.string(),
-  splitAtMs: z.number().int().min(0),
+  splitAtMs: intMs(),
 })
 
 export const moveClipInputSchema = z.object({
   clipId: z.string(),
-  newStartMs: z.number().int().min(0),
+  newStartMs: intMs(),
 })
 
 export const trimClipStartInputSchema = z.object({
   clipId: z.string(),
-  newStartMs: z.number().int().min(0),
+  newStartMs: intMs(),
 })
 
 export const trimClipEndInputSchema = z.object({
   clipId: z.string(),
-  newEndMs: z.number().int().min(0),
+  newEndMs: intMs(),
 })
 
 export const updateTextClipInputSchema = z.object({
   clipId: z.string(),
   text: z.string().optional(),
   fontFamily: z.string().optional(),
-  fontSize: z.number().min(1).optional(),
+  fontSize: z.coerce.number().min(1).optional(),
   color: z.string().optional(),
-  bold: z.boolean().optional(),
-  italic: z.boolean().optional(),
+  bold: z.coerce.boolean().optional(),
+  italic: z.coerce.boolean().optional(),
   textAlign: z.enum(['left', 'center', 'right']).optional(),
-  positionX: z.number().optional(),
-  positionY: z.number().optional(),
+  positionX: z.coerce.number().optional(),
+  positionY: z.coerce.number().optional(),
   backgroundColor: z.string().optional(),
   outlineColor: z.string().optional(),
-  outlineWidth: z.number().min(0).optional(),
+  outlineWidth: z.coerce.number().min(0).optional(),
   shadowColor: z.string().optional(),
-  shadowBlur: z.number().min(0).optional(),
-  shadowOffsetX: z.number().optional(),
-  shadowOffsetY: z.number().optional(),
-  opacity: z.number().min(0).max(1).optional(),
+  shadowBlur: z.coerce.number().min(0).optional(),
+  shadowOffsetX: z.coerce.number().optional(),
+  shadowOffsetY: z.coerce.number().optional(),
+  opacity: z.coerce.number().min(0).max(1).optional(),
 })
 
 // ── Output schemas ─────────────────────────────────────────────
