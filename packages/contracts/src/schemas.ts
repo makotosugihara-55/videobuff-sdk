@@ -82,14 +82,27 @@ const unipolar100 = () => num().min(0).max(100)    // 0..100 (opacity %, vignett
 const unit        = () => num().min(0).max(1)      // 0..1 (volume, normalized range)
 const gainDb      = () => num().min(-12).max(12)   // ±12 dB (EQ bands, compressor gain)
 
+/**
+ * Apply a `{min, max}` bound (from CLIP_LIMITS / EXPORT_LIMITS) to a coerced
+ * number. Collapses the repeated `num().min(X.min).max(X.max)` chain into
+ * a single declarative call.
+ *
+ * Use `rangedInt` for fields that must be whole numbers (pixel dims, fps,
+ * millisecond durations); the `.int()` check rejects non-integer coerced
+ * inputs before the range check runs.
+ */
+type Bounds = { min: number; max: number }
+const ranged    = (l: Bounds) => num().min(l.min).max(l.max)
+const rangedInt = (l: Bounds) => num().int().min(l.min).max(l.max)
+
 export const exportToBlobInputSchema = z.object({
-  width:          z.coerce.number().int().min(EXPORT_LIMITS.width.min).max(EXPORT_LIMITS.width.max).optional(),
-  height:         z.coerce.number().int().min(EXPORT_LIMITS.height.min).max(EXPORT_LIMITS.height.max).optional(),
-  fps:            z.coerce.number().int().min(EXPORT_LIMITS.fps.min).max(EXPORT_LIMITS.fps.max).optional(),
+  width:          rangedInt(EXPORT_LIMITS.width).optional(),
+  height:         rangedInt(EXPORT_LIMITS.height).optional(),
+  fps:            rangedInt(EXPORT_LIMITS.fps).optional(),
   videoCodec:     videoCodecSchema.optional(),
-  videoBitrate:   z.coerce.number().int().min(EXPORT_LIMITS.videoBitrate.min).max(EXPORT_LIMITS.videoBitrate.max).optional(),
+  videoBitrate:   rangedInt(EXPORT_LIMITS.videoBitrate).optional(),
   loudnessTarget: loudnessTargetSchema.optional(),
-  timeoutMs:      z.coerce.number().int().min(EXPORT_LIMITS.timeoutMs.min).max(EXPORT_LIMITS.timeoutMs.max).optional(),
+  timeoutMs:      rangedInt(EXPORT_LIMITS.timeoutMs).optional(),
 }).optional()
 
 export const addTextClipInputSchema = z.object({
@@ -166,13 +179,13 @@ export const updateClipTransformInputSchema = z.object({
   positionY: num().optional(),
   rotation: num().min(-180).max(180).optional(),
   opacity: unipolar100().optional(),
-  scaleX: num().min(CLIP_LIMITS.scalePct.min).max(CLIP_LIMITS.scalePct.max).optional(),
-  scaleY: num().min(CLIP_LIMITS.scalePct.min).max(CLIP_LIMITS.scalePct.max).optional(),
+  scaleX: ranged(CLIP_LIMITS.scalePct).optional(),
+  scaleY: ranged(CLIP_LIMITS.scalePct).optional(),
   keepAspectRatio: bool().optional(),
-  cropTop:    num().min(CLIP_LIMITS.cropPct.min).max(CLIP_LIMITS.cropPct.max).optional(),
-  cropBottom: num().min(CLIP_LIMITS.cropPct.min).max(CLIP_LIMITS.cropPct.max).optional(),
-  cropLeft:   num().min(CLIP_LIMITS.cropPct.min).max(CLIP_LIMITS.cropPct.max).optional(),
-  cropRight:  num().min(CLIP_LIMITS.cropPct.min).max(CLIP_LIMITS.cropPct.max).optional(),
+  cropTop:    ranged(CLIP_LIMITS.cropPct).optional(),
+  cropBottom: ranged(CLIP_LIMITS.cropPct).optional(),
+  cropLeft:   ranged(CLIP_LIMITS.cropPct).optional(),
+  cropRight:  ranged(CLIP_LIMITS.cropPct).optional(),
 })
 
 /** ColorGrade — bipolar -100..+100 basics, unipolar 0..100 detail/effect. */
@@ -197,9 +210,7 @@ export const updateClipColorGradeInputSchema = z.object({
 export const updateClipTransitionInputSchema = z.object({
   clipId: z.string(),
   type: transitionTypeSchema.optional(),
-  durationMs: num().int()
-    .min(CLIP_LIMITS.transitionDurationMs.min)
-    .max(CLIP_LIMITS.transitionDurationMs.max).optional(),
+  durationMs: rangedInt(CLIP_LIMITS.transitionDurationMs).optional(),
 })
 
 export const updateClipVolumeInputSchema = z.object({
@@ -248,8 +259,8 @@ export const updateImageClipShadowInputSchema = z.object({
   enabled: bool().optional(),
   color:   z.string().optional(),
   blur:    num().min(0).max(100).optional(),
-  offsetX: num().min(CLIP_LIMITS.shadowOffsetPx.min).max(CLIP_LIMITS.shadowOffsetPx.max).optional(),
-  offsetY: num().min(CLIP_LIMITS.shadowOffsetPx.min).max(CLIP_LIMITS.shadowOffsetPx.max).optional(),
+  offsetX: ranged(CLIP_LIMITS.shadowOffsetPx).optional(),
+  offsetY: ranged(CLIP_LIMITS.shadowOffsetPx).optional(),
 })
 
 export const unlinkClipInputSchema = z.object({
@@ -267,9 +278,7 @@ export const updateClipTransitionEdgeInputSchema = z.object({
   clipId: z.string(),
   edge: transitionEdgeSchema,
   type: transitionTypeSchema.optional(),
-  durationMs: num().int()
-    .min(CLIP_LIMITS.transitionDurationMs.min)
-    .max(CLIP_LIMITS.transitionDurationMs.max).optional(),
+  durationMs: rangedInt(CLIP_LIMITS.transitionDurationMs).optional(),
 })
 
 /** Remove a previously-set per-edge override so the base transition applies. */
