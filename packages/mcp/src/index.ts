@@ -90,15 +90,20 @@ const DEFAULT_VIDEO_MIME = 'video/mp4'
 //
 // All checks run on the Node side BEFORE `page.setInputFiles`, so a
 // malicious call never reaches the browser context.
+// Keep this set in sync with the web UI's MediaBrowser extension list
+// (`src/components/editor/MediaBrowser.tsx` — VIDEO_EXTS / AUDIO_EXTS) so
+// a file that a user can drag-drop into the UI is also importable via
+// MCP. Image formats mirror what the browser's <img> element can decode.
 const ALLOWED_MEDIA_EXTENSIONS: ReadonlySet<string> = new Set([
   // video containers
-  '.mp4', '.mov', '.webm', '.mkv', '.avi', '.m4v',
+  '.mp4', '.mov', '.webm', '.mkv', '.avi', '.m4v', '.ogv', '.3gp',
   // audio containers
-  '.mp3', '.wav', '.flac', '.aac', '.m4a', '.ogg', '.opus',
+  '.mp3', '.wav', '.flac', '.aac', '.m4a', '.ogg', '.opus', '.weba',
   // image formats
   '.png', '.jpg', '.jpeg', '.gif', '.webp', '.bmp',
 ])
-const MAX_MEDIA_FILE_BYTES = 4 * 1024 * 1024 * 1024 // 4 GB
+const GiB = 1024 ** 3
+const MAX_MEDIA_FILE_BYTES = 4 * GiB
 
 /**
  * Asset import pipeline — MediaBrowser's hidden file input.
@@ -229,11 +234,42 @@ async function withPage<T>(fn: (page: Page) => Promise<T>): Promise<ToolResult> 
 // this layer, so runtime safety is intact. We alias the dynamic-call
 // record type to keep the evaluate bodies readable.
 
-/** Methods on VideoBuffAutomationAPI that take no arguments. */
-type NoArgMethod = {
-  [K in keyof VideoBuffAutomationAPI]:
-    VideoBuffAutomationAPI[K] extends () => unknown ? K : never
-}[keyof VideoBuffAutomationAPI]
+/**
+ * Only the string-valued keys of VideoBuffAutomationAPI.
+ *
+ * `keyof T` on an interface nominally returns only its declared property
+ * names, but when `T` contains members whose argument types embed an
+ * open index signature (`{ [key: string]: unknown }`) — which several of
+ * our update* methods do to accept partial patches — TypeScript widens
+ * `keyof T` to `string | number | symbol`. That number/symbol leak then
+ * poisons the mapped type below and the `ArgMethod` parameter downstream
+ * ("Type 'number' is not assignable to type 'string'").
+ *
+ * `Extract<keyof T, string>` strips the widening back to the actual
+ * method names. The method names are all plain identifiers, so this is
+ * safe and matches the runtime shape we'd get from `Object.keys` anyway.
+ */
+type ApiMethodName = Extract<keyof VideoBuffAutomationAPI, string>
+
+/**
+ * Methods on VideoBuffAutomationAPI that take no arguments.
+ *
+ * Hand-enumerated rather than derived by a conditional type. We tried
+ * both `extends () => unknown` and `Parameters<…>['length'] extends 0`,
+ * but TypeScript's bivariant parameter subtyping (former) swallows every
+ * function into the no-arg bucket, and the stricter `Parameters`-based
+ * version collapses to `never` in the mapped-type context — probably
+ * because the outer distribution doesn't keep `VideoBuffAutomationAPI[K]`
+ * concrete enough for `Parameters` to resolve. Hard-coding the list
+ * keeps this source of truth next to the seven `registerNoArgTool` call
+ * sites below, and the `extends ApiMethodName` constraint still catches
+ * typos / stale names at compile time.
+ */
+type NoArgMethod = Extract<
+  ApiMethodName,
+  'ping' | 'getProjectInfo' | 'getUIState' | 'togglePlay'
+        | 'undo' | 'redo' | 'resetProject'
+>
 
 /**
  * Method names eligible for `registerArgTool`: everything on the API
@@ -241,7 +277,7 @@ type NoArgMethod = {
  * have bespoke registration (`exportToBlob`).
  */
 type ArgMethod = Exclude<
-  keyof VideoBuffAutomationAPI,
+  ApiMethodName,
   NoArgMethod | 'ready' | 'version' | 'exportToBlob'
 >
 

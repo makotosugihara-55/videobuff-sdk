@@ -44,6 +44,15 @@ export const CLIP_LIMITS = {
   scalePct:             { min: 0,   max: 200 },  // scaleX / scaleY
   cropPct:              { min: 0,   max: 50  },  // cropTop / Bottom / Left / Right
   shadowOffsetPx:       { min: -50, max: 50  },  // image shadow offsetX / offsetY
+  rotationDeg:          { min: -180, max: 180 }, // clip rotation
+  speedRate:            { min: 0.1, max: 10  },  // playback speed multiplier
+  textFontSize:         { min: 1,   max: 1000 }, // text-clip font size (px)
+  textOutline:          { min: 0,   max: 100 },  // text-clip outline width + shadow blur
+  textShadowOffsetPx:   { min: -1000, max: 1000 }, // text-clip shadow offsetX / offsetY
+  imageBorderRadius:    { min: 0,   max: 50  },  // image-clip borderRadius (px)
+  compThresholdDb:      { min: -50, max: 0   },  // compressor threshold
+  compRatio:            { min: 1,   max: 20  },  // compressor ratio
+  noiseGateDb:          { min: -100, max: 0  },  // noise gate floor (-100 = off)
 } as const
 
 /**
@@ -70,6 +79,23 @@ export const STRING_LIMITS = {
   textClipText: { min: 0, max: 5_000 },
   fontFamily:   { min: 1, max: 100 },
   colorString:  { min: 1, max: 64 },
+} as const
+
+/**
+ * Filesystem-path length cap for `importAssets`.
+ *
+ * POSIX PATH_MAX is typically 4096 on Linux and 1024 on macOS, so 4 KB
+ * is a loose-but-finite ceiling that stops a pathological caller from
+ * handing us a multi-MB "path" string. The path content is further
+ * validated in the MCP server (extension allow-list, realpath resolution,
+ * size stat).
+ *
+ * `paths` count ceiling is conservative (16) to prevent a pathological
+ * client from dumping thousands of files into a single call.
+ */
+export const PATH_LIMITS = {
+  pathMax:   { max: 4096 },
+  pathsPerCall: { min: 1, max: 16 },
 } as const
 
 // ── Input schemas ──────────────────────────────────────────────
@@ -174,7 +200,7 @@ export const updateTextClipInputSchema = z.object({
   // payload being planted on the timeline.
   text: z.string().max(STRING_LIMITS.textClipText.max).optional(),
   fontFamily: z.string().max(STRING_LIMITS.fontFamily.max).optional(),
-  fontSize: num().min(1).max(1000).optional(),
+  fontSize: ranged(CLIP_LIMITS.textFontSize).optional(),
   // Color strings may be hex / rgba / hsla / named — all short.
   color: z.string().max(STRING_LIMITS.colorString.max).optional(),
   bold: bool().optional(),
@@ -184,11 +210,11 @@ export const updateTextClipInputSchema = z.object({
   positionY: num().optional(),
   backgroundColor: z.string().max(STRING_LIMITS.colorString.max).optional(),
   outlineColor: z.string().max(STRING_LIMITS.colorString.max).optional(),
-  outlineWidth: num().min(0).max(100).optional(),
+  outlineWidth: ranged(CLIP_LIMITS.textOutline).optional(),
   shadowColor: z.string().max(STRING_LIMITS.colorString.max).optional(),
-  shadowBlur: num().min(0).max(100).optional(),
-  shadowOffsetX: num().min(-1000).max(1000).optional(),
-  shadowOffsetY: num().min(-1000).max(1000).optional(),
+  shadowBlur: ranged(CLIP_LIMITS.textOutline).optional(),
+  shadowOffsetX: ranged(CLIP_LIMITS.textShadowOffsetPx).optional(),
+  shadowOffsetY: ranged(CLIP_LIMITS.textShadowOffsetPx).optional(),
   opacity: unipolar100().optional(),
 })
 
@@ -207,7 +233,7 @@ export const updateClipTransformInputSchema = z.object({
   clipId: z.string(),
   positionX: num().optional(),
   positionY: num().optional(),
-  rotation: num().min(-180).max(180).optional(),
+  rotation: ranged(CLIP_LIMITS.rotationDeg).optional(),
   opacity: unipolar100().optional(),
   scaleX: ranged(CLIP_LIMITS.scalePct).optional(),
   scaleY: ranged(CLIP_LIMITS.scalePct).optional(),
@@ -251,7 +277,7 @@ export const updateClipVolumeInputSchema = z.object({
 /** Playback speed + optional ramp (ease-in/out between rangeStart..rangeEnd). */
 export const updateClipSpeedInputSchema = z.object({
   clipId: z.string(),
-  rate: num().min(0.1).max(10).optional(),
+  rate: ranged(CLIP_LIMITS.speedRate).optional(),
   ramp: bool().optional(),
   rampDurationMs: intMs().optional(),
   preservePitch: bool().optional(),
@@ -272,7 +298,7 @@ export const updateImageClipInputSchema = z.object({
   clipId: z.string(),
   opacity: unipolar100().optional(),
   blendMode: blendModeSchema.optional(),
-  borderRadius: num().min(0).max(50).optional(),
+  borderRadius: ranged(CLIP_LIMITS.imageBorderRadius).optional(),
 })
 
 /**
@@ -288,7 +314,7 @@ export const updateImageClipShadowInputSchema = z.object({
   clipId: z.string(),
   enabled: bool().optional(),
   color:   z.string().max(STRING_LIMITS.colorString.max).optional(),
-  blur:    num().min(0).max(100).optional(),
+  blur:    ranged(CLIP_LIMITS.textOutline).optional(),
   offsetX: ranged(CLIP_LIMITS.shadowOffsetPx).optional(),
   offsetY: ranged(CLIP_LIMITS.shadowOffsetPx).optional(),
 })
@@ -336,12 +362,12 @@ export const updateClipAudioEffectInputSchema = z.object({
   eqMid:         gainDb().optional(),
   eqHigh:        gainDb().optional(),
   compressor:    bool().optional(),
-  compThreshold: num().min(-50).max(0).optional(),
-  compRatio:     num().min(1).max(20).optional(),
+  compThreshold: ranged(CLIP_LIMITS.compThresholdDb).optional(),
+  compRatio:     ranged(CLIP_LIMITS.compRatio).optional(),
   compAttack:    unit().optional(),
   compRelease:   unit().optional(),
   compGain:      gainDb().optional(),
-  noiseGate:     num().min(-100).max(0).optional(),
+  noiseGate:     ranged(CLIP_LIMITS.noiseGateDb).optional(),
 })
 
 /**
@@ -354,12 +380,11 @@ export const updateClipAudioEffectInputSchema = z.object({
  * thousands of files into a single call.
  */
 export const importAssetsInputSchema = z.object({
-  // Individual path cap of 4 KB — POSIX PATH_MAX is typically 4096 on
-  // Linux and 1024 on macOS, so 4 KB is a loose-but-finite ceiling
-  // that stops a pathological caller from handing us a multi-MB
-  // "path" string. The path content is further validated in the MCP
-  // server (extension allow-list, realpath resolution, size stat).
-  paths: z.array(z.string().min(1).max(4096)).min(1).max(16),
+  // Bounds live in PATH_LIMITS so the MCP server and any future CLI
+  // callers agree on the same cap without redeclaring the literals.
+  paths: z.array(z.string().min(1).max(PATH_LIMITS.pathMax.max))
+    .min(PATH_LIMITS.pathsPerCall.min)
+    .max(PATH_LIMITS.pathsPerCall.max),
 })
 
 export const importAssetsResultSchema = z.object({
