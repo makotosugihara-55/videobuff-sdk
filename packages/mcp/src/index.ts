@@ -112,7 +112,7 @@ async function withPage<T>(fn: (page: Page) => Promise<T>): Promise<ToolResult> 
 
 // ── Generic tool registration helpers ────────────────────────
 //
-// The 15 non-export tools all share the same skeleton:
+// The 20+ non-export tools all share the same skeleton:
 //   registerTool(name, { description, inputSchema }, (args) =>
 //     withPage(page => page.evaluate(
 //       (a) => window.videobuff![method](a),
@@ -122,16 +122,27 @@ async function withPage<T>(fn: (page: Page) => Promise<T>): Promise<ToolResult> 
 // Only `description`, `inputSchema`, and the target method name vary.
 // These helpers collapse ~180 lines of repetition into declarative calls.
 //
-// NOTE: the `as unknown as` casts at the page.evaluate boundary are
-// unavoidable — Playwright serializes arguments as strings, so static
-// type safety across the boundary is lost by definition. The Zod
-// schemas validate the inputs *before* they reach this layer.
+// The `as unknown as …` casts at the page.evaluate boundary are
+// unavoidable — Playwright serializes the fn body and its args, so the
+// static API type can't follow through. Zod validates inputs *before*
+// this layer, so runtime safety is intact. We alias the dynamic-call
+// record type to keep the evaluate bodies readable.
 
 /** Methods on VideoBuffAutomationAPI that take no arguments. */
 type NoArgMethod = {
   [K in keyof VideoBuffAutomationAPI]:
     VideoBuffAutomationAPI[K] extends () => unknown ? K : never
 }[keyof VideoBuffAutomationAPI]
+
+/**
+ * Method names eligible for `registerArgTool`: everything on the API
+ * except the zero-arg methods and the constants / special tools that
+ * have bespoke registration (`exportToBlob`).
+ */
+type ArgMethod = Exclude<
+  keyof VideoBuffAutomationAPI,
+  NoArgMethod | 'ready' | 'version' | 'exportToBlob'
+>
 
 /** Register a tool whose underlying API method takes zero arguments. */
 function registerNoArgTool(toolName: string, opName: OperationName, method: NoArgMethod): void {
@@ -141,8 +152,10 @@ function registerNoArgTool(toolName: string, opName: OperationName, method: NoAr
     () =>
       withPage((page) =>
         page.evaluate(
-          (m: string) =>
-            (window.videobuff as unknown as Record<string, () => unknown>)[m]!(),
+          (m: string) => {
+            type Invoker = Record<string, () => unknown>
+            return (window.videobuff as unknown as Invoker)[m]!()
+          },
           method,
         ),
       ),
@@ -154,7 +167,7 @@ function registerArgTool(
   toolName: string,
   opName: OperationName,
   schema: { shape: SchemaShape },
-  method: Exclude<keyof VideoBuffAutomationAPI, NoArgMethod | 'ready' | 'version' | 'exportToBlob'>,
+  method: ArgMethod,
 ): void {
   server.registerTool(
     toolName,
@@ -162,8 +175,10 @@ function registerArgTool(
     (args: ToolArgs) =>
       withPage((page) =>
         page.evaluate(
-          ({ m, a }: { m: string; a: ToolArgs }) =>
-            (window.videobuff as unknown as Record<string, (x: unknown) => unknown>)[m]!(a),
+          ({ m, a }: { m: string; a: ToolArgs }) => {
+            type Invoker = Record<string, (x: unknown) => unknown>
+            return (window.videobuff as unknown as Invoker)[m]!(a)
+          },
           { m: method, a: args },
         ),
       ),

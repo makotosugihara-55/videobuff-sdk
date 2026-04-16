@@ -24,7 +24,12 @@ export const textAlignSchema = z.enum(['left', 'center', 'right'])
 export const transitionEdgeSchema = z.enum(['in', 'out'])
 export const siblingDirectionSchema = z.enum(['up', 'down'])
 
-// ── Export limits (bounds for numeric fields) ──────────────────
+// ── Numeric limits (bounds for validated fields) ───────────────
+//
+// Only ranges used 2+ times live here. Single-use ranges stay inline
+// at their schema — centralising them would force readers to jump
+// between files for no reuse benefit. When a new schema needs one of
+// these ranges, promote it rather than redefining.
 
 export const EXPORT_LIMITS = {
   width:        { min: 16, max: 3840 },      // up to 4K
@@ -32,6 +37,13 @@ export const EXPORT_LIMITS = {
   fps:          { min: 1,  max: 120 },
   videoBitrate: { min: 100_000, max: 100_000_000 }, // 100 kbps – 100 Mbps
   timeoutMs:    { min: 1_000,   max: 1_800_000 },   // 1 s – 30 min
+} as const
+
+export const CLIP_LIMITS = {
+  transitionDurationMs: { min: 100, max: 3000 }, // base + per-edge overrides
+  scalePct:             { min: 0,   max: 200 },  // scaleX / scaleY
+  cropPct:              { min: 0,   max: 50  },  // cropTop / Bottom / Left / Right
+  shadowOffsetPx:       { min: -50, max: 50  },  // image shadow offsetX / offsetY
 } as const
 
 // ── Input schemas ──────────────────────────────────────────────
@@ -154,13 +166,13 @@ export const updateClipTransformInputSchema = z.object({
   positionY: num().optional(),
   rotation: num().min(-180).max(180).optional(),
   opacity: unipolar100().optional(),
-  scaleX: num().min(0).max(200).optional(),
-  scaleY: num().min(0).max(200).optional(),
+  scaleX: num().min(CLIP_LIMITS.scalePct.min).max(CLIP_LIMITS.scalePct.max).optional(),
+  scaleY: num().min(CLIP_LIMITS.scalePct.min).max(CLIP_LIMITS.scalePct.max).optional(),
   keepAspectRatio: bool().optional(),
-  cropTop: num().min(0).max(50).optional(),
-  cropBottom: num().min(0).max(50).optional(),
-  cropLeft: num().min(0).max(50).optional(),
-  cropRight: num().min(0).max(50).optional(),
+  cropTop:    num().min(CLIP_LIMITS.cropPct.min).max(CLIP_LIMITS.cropPct.max).optional(),
+  cropBottom: num().min(CLIP_LIMITS.cropPct.min).max(CLIP_LIMITS.cropPct.max).optional(),
+  cropLeft:   num().min(CLIP_LIMITS.cropPct.min).max(CLIP_LIMITS.cropPct.max).optional(),
+  cropRight:  num().min(CLIP_LIMITS.cropPct.min).max(CLIP_LIMITS.cropPct.max).optional(),
 })
 
 /** ColorGrade — bipolar -100..+100 basics, unipolar 0..100 detail/effect. */
@@ -185,7 +197,9 @@ export const updateClipColorGradeInputSchema = z.object({
 export const updateClipTransitionInputSchema = z.object({
   clipId: z.string(),
   type: transitionTypeSchema.optional(),
-  durationMs: num().int().min(100).max(3000).optional(),
+  durationMs: num().int()
+    .min(CLIP_LIMITS.transitionDurationMs.min)
+    .max(CLIP_LIMITS.transitionDurationMs.max).optional(),
 })
 
 export const updateClipVolumeInputSchema = z.object({
@@ -234,8 +248,8 @@ export const updateImageClipShadowInputSchema = z.object({
   enabled: bool().optional(),
   color:   z.string().optional(),
   blur:    num().min(0).max(100).optional(),
-  offsetX: num().min(-50).max(50).optional(),
-  offsetY: num().min(-50).max(50).optional(),
+  offsetX: num().min(CLIP_LIMITS.shadowOffsetPx.min).max(CLIP_LIMITS.shadowOffsetPx.max).optional(),
+  offsetY: num().min(CLIP_LIMITS.shadowOffsetPx.min).max(CLIP_LIMITS.shadowOffsetPx.max).optional(),
 })
 
 export const unlinkClipInputSchema = z.object({
@@ -253,7 +267,9 @@ export const updateClipTransitionEdgeInputSchema = z.object({
   clipId: z.string(),
   edge: transitionEdgeSchema,
   type: transitionTypeSchema.optional(),
-  durationMs: num().int().min(100).max(3000).optional(),
+  durationMs: num().int()
+    .min(CLIP_LIMITS.transitionDurationMs.min)
+    .max(CLIP_LIMITS.transitionDurationMs.max).optional(),
 })
 
 /** Remove a previously-set per-edge override so the base transition applies. */
