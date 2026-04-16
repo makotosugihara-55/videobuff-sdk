@@ -271,6 +271,23 @@ export const updateClipAudioEffectInputSchema = z.object({
   noiseGate:     num().min(-100).max(0).optional(),
 })
 
+/**
+ * `videobuff_import_assets` — import local files into the editor.
+ *
+ * Paths MUST be absolute filesystem paths readable by the MCP server
+ * process. Relative paths are rejected to avoid cwd-dependent behavior
+ * across clients. At least one path is required; upper bound is
+ * conservative (16) to prevent a pathological client from dumping
+ * thousands of files into a single call.
+ */
+export const importAssetsInputSchema = z.object({
+  paths: z.array(z.string().min(1)).min(1).max(16),
+})
+
+export const importAssetsResultSchema = z.object({
+  assetIds: z.array(z.string()),
+})
+
 // ── Output schemas ─────────────────────────────────────────────
 
 export const exportSettingsSchema = z.object({

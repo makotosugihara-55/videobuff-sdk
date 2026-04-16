@@ -37,6 +37,8 @@ import {
   clearClipTransitionOverrideInputSchema,
   moveClipToSiblingTrackInputSchema,
   updateClipAudioEffectInputSchema,
+  importAssetsInputSchema,
+  importAssetsResultSchema,
   okResultSchema,
 } from './schemas.js'
 
@@ -203,6 +205,11 @@ export const operations = {
     description: 'Update audio effect: 3-band EQ, compressor, noise gate.',
     input: updateClipAudioEffectInputSchema,
     output: okResultSchema,
+  },
+  importAssets: {
+    description: 'Import local media files (video/audio/image) by absolute path. Also places them on the timeline.',
+    input: importAssetsInputSchema,
+    output: importAssetsResultSchema,
   },
 } as const satisfies Record<string, OperationDef>
 
