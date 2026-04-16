@@ -15,9 +15,9 @@
 import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js'
 import { StdioServerTransport } from '@modelcontextprotocol/sdk/server/stdio.js'
 import type { Page } from 'playwright'
-import { writeFile } from 'node:fs/promises'
+import { writeFile, mkdtemp, realpath, stat } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
-import { join } from 'node:path'
+import { join, isAbsolute, extname, sep } from 'node:path'
 import {
   operations,
   type OperationName,
@@ -66,9 +66,39 @@ type ToolArgs = Record<string, unknown>
 
 const SERVER_NAME = 'videobuff'
 const SERVER_VERSION = '0.1.0'
-const EXPORT_FILENAME_PREFIX = 'videobuff-export-'
-const EXPORT_FILENAME_SUFFIX = '.mp4'
+const EXPORT_TMPDIR_PREFIX = 'videobuff-export-'
+const EXPORT_FILENAME = 'export.mp4'
+const EXPORT_FILE_MODE = 0o600
 const DEFAULT_VIDEO_MIME = 'video/mp4'
+
+// ── Media-import confinement (importAssets hardening) ────────
+//
+// Two defenses layered on top of Zod's shape validation:
+//
+//  1. Extension allow-list — rejects anything that isn't a known
+//     video/audio/image container. Stops a prompt-injected agent from
+//     coaxing the server into reading `~/.ssh/id_rsa` or similar.
+//
+//  2. Optional `VIDEOBUFF_MEDIA_ROOT` env var — when set, every import
+//     path must resolve (via `realpath`) to a file inside that root.
+//     Symlinks are followed before the check, so symlink-escape is
+//     blocked too. The default (unset) preserves the current dev-UX
+//     where any absolute path works.
+//
+//  3. Size ceiling — rejects files above 4 GB to catch pathological
+//     inputs that would OOM the browser's demuxer.
+//
+// All checks run on the Node side BEFORE `page.setInputFiles`, so a
+// malicious call never reaches the browser context.
+const ALLOWED_MEDIA_EXTENSIONS: ReadonlySet<string> = new Set([
+  // video containers
+  '.mp4', '.mov', '.webm', '.mkv', '.avi', '.m4v',
+  // audio containers
+  '.mp3', '.wav', '.flac', '.aac', '.m4a', '.ogg', '.opus',
+  // image formats
+  '.png', '.jpg', '.jpeg', '.gif', '.webp', '.bmp',
+])
+const MAX_MEDIA_FILE_BYTES = 4 * 1024 * 1024 * 1024 // 4 GB
 
 /**
  * Asset import pipeline — MediaBrowser's hidden file input.
@@ -81,6 +111,75 @@ const DEFAULT_VIDEO_MIME = 'video/mp4'
 const MEDIA_IMPORT_INPUT_SELECTOR = 'input[data-automation="media-import"]'
 const IMPORT_POLL_TIMEOUT_MS = 30_000
 const IMPORT_POLL_INTERVAL_MS = 200
+
+// ── Path-safety helper (importAssets guard) ──────────────────
+
+/**
+ * Validate one absolute path against the confinement policy.
+ *
+ * Returns the resolved real path on success — callers should prefer
+ * the returned value over the input so that subsequent operations see
+ * the canonical form (same file regardless of symlinks / `..`).
+ *
+ * Throws `Error` with a descriptive message on any rejection.
+ */
+async function assertImportablePath(path: string): Promise<string> {
+  if (!isAbsolute(path)) {
+    throw new Error(`importAssets: path must be absolute (got: ${path})`)
+  }
+  const ext = extname(path).toLowerCase()
+  if (!ALLOWED_MEDIA_EXTENSIONS.has(ext)) {
+    throw new Error(
+      `importAssets: disallowed file extension '${ext || '(none)'}' — ` +
+      `allowed: ${[...ALLOWED_MEDIA_EXTENSIONS].join(', ')}`,
+    )
+  }
+  // realpath() both resolves symlinks and verifies existence. If the
+  // target doesn't exist it throws ENOENT, which short-circuits the rest
+  // of the check.
+  let real: string
+  try {
+    real = await realpath(path)
+  } catch (e) {
+    throw new Error(`importAssets: cannot resolve path '${path}' (${(e as Error).message})`)
+  }
+  // After realpath, re-check the extension so a symlink with an
+  // allowed name can't point at a disallowed target (e.g. `foo.mp4`
+  // → `/etc/shadow`).
+  const realExt = extname(real).toLowerCase()
+  if (!ALLOWED_MEDIA_EXTENSIONS.has(realExt)) {
+    throw new Error(
+      `importAssets: symlink target has disallowed extension '${realExt || '(none)'}'`,
+    )
+  }
+  const root = process.env.VIDEOBUFF_MEDIA_ROOT
+  if (root) {
+    let rootReal: string
+    try {
+      rootReal = await realpath(root)
+    } catch (e) {
+      throw new Error(
+        `importAssets: VIDEOBUFF_MEDIA_ROOT='${root}' is not a valid directory (${(e as Error).message})`,
+      )
+    }
+    const withinRoot = real === rootReal || real.startsWith(rootReal + sep)
+    if (!withinRoot) {
+      throw new Error(
+        `importAssets: path '${path}' resolves outside VIDEOBUFF_MEDIA_ROOT`,
+      )
+    }
+  }
+  const st = await stat(real)
+  if (!st.isFile()) {
+    throw new Error(`importAssets: '${path}' is not a regular file`)
+  }
+  if (st.size > MAX_MEDIA_FILE_BYTES) {
+    throw new Error(
+      `importAssets: '${path}' is ${st.size} bytes, exceeds ${MAX_MEDIA_FILE_BYTES} byte limit`,
+    )
+  }
+  return real
+}
 
 // ── Tool result helpers ──────────────────────────────────────
 
@@ -273,14 +372,27 @@ server.registerTool(
       const { page } = await session.get()
       const { paths } = args as { paths: string[] }
 
+      // Path-safety gate — every path must pass the extension allow-list,
+      // confinement check, and size ceiling BEFORE the Playwright call
+      // ever reads the file. `assertImportablePath` throws on rejection;
+      // the `catch` at the bottom turns that into a structured errorResult.
+      // Resolving to the canonical real path here means any symlink is
+      // followed once on the Node side; Playwright then opens the same
+      // inode a second time with no TOCTOU window worth exploiting (the
+      // worst case is the user racing their own filesystem).
+      const resolvedPaths: string[] = []
+      for (const p of paths) {
+        resolvedPaths.push(await assertImportablePath(p))
+      }
+
       const before = await page.evaluate(() => {
         const info = window.videobuff!.getProjectInfo() as { assets: { id: string }[] }
         return info.assets.map((a) => a.id)
       })
       const beforeSet = new Set(before)
 
-      log(`importing ${paths.length} file(s)…`)
-      await page.setInputFiles(MEDIA_IMPORT_INPUT_SELECTOR, paths)
+      log(`importing ${resolvedPaths.length} file(s)…`)
+      await page.setInputFiles(MEDIA_IMPORT_INPUT_SELECTOR, resolvedPaths)
 
       const deadline = Date.now() + IMPORT_POLL_TIMEOUT_MS
       while (Date.now() < deadline) {
@@ -376,13 +488,23 @@ server.registerTool(
       // concurrent call don't leak into the wrong MCP channel.
       onExportProgress = null
 
-      // Decode base64 → Buffer → write to temp file
+      // Decode base64 → Buffer → write to a per-invocation temp directory.
+      //
+      // Security: `mkdtemp` creates a fresh directory with mode 0700
+      // (umask-dependent, but Node ≥ v10.30 enforces 0700 on POSIX),
+      // and we further chmod the MP4 to 0600 on write. Together this
+      // prevents other local users on multi-tenant systems from reading
+      // the exported file out of `/tmp`. The previous implementation wrote
+      // directly into `os.tmpdir()` with the default umask (typically
+      // 0644), which on Linux multi-user machines is world-readable.
+      //
+      // We do not clean up the directory — Claude Code needs the file
+      // to persist long enough for the user to read/move it. OS temp
+      // cleanup takes care of the rest on reboot.
       const buf = Buffer.from(result.base64, 'base64')
-      const outPath = join(
-        tmpdir(),
-        `${EXPORT_FILENAME_PREFIX}${Date.now()}${EXPORT_FILENAME_SUFFIX}`,
-      )
-      await writeFile(outPath, buf)
+      const outDir = await mkdtemp(join(tmpdir(), EXPORT_TMPDIR_PREFIX))
+      const outPath = join(outDir, EXPORT_FILENAME)
+      await writeFile(outPath, buf, { mode: EXPORT_FILE_MODE })
 
       return {
         content: [

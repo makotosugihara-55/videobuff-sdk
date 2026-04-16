@@ -46,6 +46,32 @@ export const CLIP_LIMITS = {
   shadowOffsetPx:       { min: -50, max: 50  },  // image shadow offsetX / offsetY
 } as const
 
+/**
+ * Hard caps on user-supplied string lengths.
+ *
+ * These are wide enough for any realistic editing workflow but tight
+ * enough that an attacker can't smuggle a multi-kilobyte prompt-injection
+ * payload through a single field. Anything exceeding the cap is rejected
+ * at the schema boundary — the web-side `untrusted()` snapshot wrapper
+ * provides the second layer of defense (truncate + tag) for strings
+ * that slip through via other paths (OPFS restore, direct store API).
+ *
+ *  - projectName:   100 chars  (title field — no legit use case beyond a title)
+ *  - textClipText:  5_000      (multi-paragraph lower-thirds are fine; a novel is not)
+ *  - fontFamily:    100        (real font names are short)
+ *  - colorString:   64         (any reasonable hex/rgba/hsla fits)
+ *
+ * When a user legitimately hits a cap, they'll want to widen it. Leave
+ * the existing values alone and add a new key rather than revising in
+ * place, so existing clients stay predictable.
+ */
+export const STRING_LIMITS = {
+  projectName:  { min: 1, max: 100 },
+  textClipText: { min: 0, max: 5_000 },
+  fontFamily:   { min: 1, max: 100 },
+  colorString:  { min: 1, max: 64 },
+} as const
+
 // ── Input schemas ──────────────────────────────────────────────
 
 // z.coerce.number() accepts both JSON numbers and numeric strings. This
@@ -143,29 +169,33 @@ export const trimClipEndInputSchema = z.object({
 
 export const updateTextClipInputSchema = z.object({
   clipId: z.string(),
-  text: z.string().optional(),
-  fontFamily: z.string().optional(),
-  fontSize: num().min(1).optional(),
-  color: z.string().optional(),
+  // `text` has the largest cap — lyrics / quote blocks / lower-thirds
+  // can span multiple paragraphs. Still finite to stop a multi-megabyte
+  // payload being planted on the timeline.
+  text: z.string().max(STRING_LIMITS.textClipText.max).optional(),
+  fontFamily: z.string().max(STRING_LIMITS.fontFamily.max).optional(),
+  fontSize: num().min(1).max(1000).optional(),
+  // Color strings may be hex / rgba / hsla / named — all short.
+  color: z.string().max(STRING_LIMITS.colorString.max).optional(),
   bold: bool().optional(),
   italic: bool().optional(),
   textAlign: textAlignSchema.optional(),
   positionX: num().optional(),
   positionY: num().optional(),
-  backgroundColor: z.string().optional(),
-  outlineColor: z.string().optional(),
-  outlineWidth: num().min(0).optional(),
-  shadowColor: z.string().optional(),
-  shadowBlur: num().min(0).optional(),
-  shadowOffsetX: num().optional(),
-  shadowOffsetY: num().optional(),
+  backgroundColor: z.string().max(STRING_LIMITS.colorString.max).optional(),
+  outlineColor: z.string().max(STRING_LIMITS.colorString.max).optional(),
+  outlineWidth: num().min(0).max(100).optional(),
+  shadowColor: z.string().max(STRING_LIMITS.colorString.max).optional(),
+  shadowBlur: num().min(0).max(100).optional(),
+  shadowOffsetX: num().min(-1000).max(1000).optional(),
+  shadowOffsetY: num().min(-1000).max(1000).optional(),
   opacity: unipolar100().optional(),
 })
 
 // ── Phase 1: project / clip properties ─────────────────────────
 
 export const setProjectNameInputSchema = z.object({
-  name: z.string().min(1).max(200),
+  name: z.string().min(STRING_LIMITS.projectName.min).max(STRING_LIMITS.projectName.max),
 })
 
 export const setAspectRatioInputSchema = z.object({
@@ -257,7 +287,7 @@ export const updateImageClipInputSchema = z.object({
 export const updateImageClipShadowInputSchema = z.object({
   clipId: z.string(),
   enabled: bool().optional(),
-  color:   z.string().optional(),
+  color:   z.string().max(STRING_LIMITS.colorString.max).optional(),
   blur:    num().min(0).max(100).optional(),
   offsetX: ranged(CLIP_LIMITS.shadowOffsetPx).optional(),
   offsetY: ranged(CLIP_LIMITS.shadowOffsetPx).optional(),
@@ -324,7 +354,12 @@ export const updateClipAudioEffectInputSchema = z.object({
  * thousands of files into a single call.
  */
 export const importAssetsInputSchema = z.object({
-  paths: z.array(z.string().min(1)).min(1).max(16),
+  // Individual path cap of 4 KB — POSIX PATH_MAX is typically 4096 on
+  // Linux and 1024 on macOS, so 4 KB is a loose-but-finite ceiling
+  // that stops a pathological caller from handing us a multi-MB
+  // "path" string. The path content is further validated in the MCP
+  // server (extension allow-list, realpath resolution, size stat).
+  paths: z.array(z.string().min(1).max(4096)).min(1).max(16),
 })
 
 export const importAssetsResultSchema = z.object({
