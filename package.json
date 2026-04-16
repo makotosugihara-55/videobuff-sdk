@@ -7,10 +7,10 @@
     "node": ">=20"
   },
   "scripts": {
-    "build": "turbo run build",
-    "typecheck": "turbo run typecheck",
+    "build": "pnpm -r build",
+    "typecheck": "pnpm -r build && pnpm -r typecheck",
     "lint": "biome check .",
     "lint:fix": "biome check --write .",
-    "clean": "turbo run clean"
+    "clean": "pnpm -r clean"
   }
 }

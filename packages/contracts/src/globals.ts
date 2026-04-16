@@ -4,6 +4,20 @@
  * Shared across core, mcp, and any other package that evaluates
  * code inside a browser context. Import this package's tsconfig
  * or reference this file to pick up the augmentation.
+ *
+ * NOTE: deliberately named `.ts` (not `.d.ts`). An ambient-only file
+ * was the natural choice here — the file declares types and a `declare
+ * global` block, nothing else — but tsup's DTS bundler does not
+ * re-emit `.d.ts` inputs into the output directory. That meant
+ * `dist/index.d.ts`'s `export type { … } from './globals.js'` resolved
+ * to nothing in downstream packages, widening `keyof
+ * VideoBuffAutomationAPI` to `string | number | symbol` and silently
+ * breaking every `ArgMethod`-based helper in @videobuff/mcp.
+ *
+ * As a plain `.ts` source file it gets compiled like any other:
+ * tsup emits a zero-byte `dist/globals.js` (there are no runtime
+ * exports) and a fully-populated `dist/globals.d.ts`. Consumers
+ * resolve the re-export the way Node / TS expect.
  */
 
 /**
