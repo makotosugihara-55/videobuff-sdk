@@ -41,6 +41,10 @@ import {
   updateImageClipInputSchema,
   unlinkClipInputSchema,
   relinkClipInputSchema,
+  updateClipTransitionEdgeInputSchema,
+  clearClipTransitionOverrideInputSchema,
+  moveClipToSiblingTrackInputSchema,
+  updateClipAudioEffectInputSchema,
   type VideoBuffAutomationAPI,
 } from '@videobuff/contracts'
 import { VideoBuffSession, log } from '@videobuff/core'
@@ -192,6 +196,13 @@ registerArgTool('videobuff_update_clip_speed',      'updateClipSpeed',      upda
 registerArgTool('videobuff_update_image_clip',      'updateImageClip',      updateImageClipInputSchema,      'updateImageClip')
 registerArgTool('videobuff_unlink_clip',            'unlinkClip',           unlinkClipInputSchema,           'unlinkClip')
 registerArgTool('videobuff_relink_clip',            'relinkClip',           relinkClipInputSchema,           'relinkClip')
+
+// ── Phase 2: per-edge transition / track move / audio effect ─
+
+registerArgTool('videobuff_update_clip_transition_edge',    'updateClipTransitionEdge',    updateClipTransitionEdgeInputSchema,    'updateClipTransitionEdge')
+registerArgTool('videobuff_clear_clip_transition_override', 'clearClipTransitionOverride', clearClipTransitionOverrideInputSchema, 'clearClipTransitionOverride')
+registerArgTool('videobuff_move_clip_to_sibling_track',     'moveClipToSiblingTrack',      moveClipToSiblingTrackInputSchema,      'moveClipToSiblingTrack')
+registerArgTool('videobuff_update_clip_audio_effect',       'updateClipAudioEffect',       updateClipAudioEffectInputSchema,       'updateClipAudioEffect')
 
 // ── Export (special — progress bridge + temp-file emission) ──
 

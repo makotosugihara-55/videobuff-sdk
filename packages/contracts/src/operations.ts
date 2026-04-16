@@ -33,6 +33,10 @@ import {
   updateImageClipInputSchema,
   unlinkClipInputSchema,
   relinkClipInputSchema,
+  updateClipTransitionEdgeInputSchema,
+  clearClipTransitionOverrideInputSchema,
+  moveClipToSiblingTrackInputSchema,
+  updateClipAudioEffectInputSchema,
   okResultSchema,
 } from './schemas.js'
 
@@ -178,6 +182,26 @@ export const operations = {
   relinkClip: {
     description: 'Re-link a previously unlinked clip to its sibling.',
     input: relinkClipInputSchema,
+    output: okResultSchema,
+  },
+  updateClipTransitionEdge: {
+    description: 'Override the in/out transition on one edge of a clip.',
+    input: updateClipTransitionEdgeInputSchema,
+    output: okResultSchema,
+  },
+  clearClipTransitionOverride: {
+    description: 'Remove a per-edge transition override (restore the base).',
+    input: clearClipTransitionOverrideInputSchema,
+    output: okResultSchema,
+  },
+  moveClipToSiblingTrack: {
+    description: 'Move a clip to the sibling track of the same type.',
+    input: moveClipToSiblingTrackInputSchema,
+    output: okResultSchema,
+  },
+  updateClipAudioEffect: {
+    description: 'Update audio effect: 3-band EQ, compressor, noise gate.',
+    input: updateClipAudioEffectInputSchema,
     output: okResultSchema,
   },
 } as const satisfies Record<string, OperationDef>

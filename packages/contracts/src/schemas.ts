@@ -21,6 +21,8 @@ export const blendModeSchema = z.enum([
   'hard-light', 'soft-light', 'difference', 'exclusion',
 ])
 export const textAlignSchema = z.enum(['left', 'center', 'right'])
+export const transitionEdgeSchema = z.enum(['in', 'out'])
+export const siblingDirectionSchema = z.enum(['up', 'down'])
 
 // ── Export limits (bounds for numeric fields) ──────────────────
 
@@ -66,6 +68,7 @@ const num = () => z.coerce.number()
 const bipolar100  = () => num().min(-100).max(100) // -100..+100 (most color dials)
 const unipolar100 = () => num().min(0).max(100)    // 0..100 (opacity %, vignette, …)
 const unit        = () => num().min(0).max(1)      // 0..1 (volume, normalized range)
+const gainDb      = () => num().min(-12).max(12)   // ±12 dB (EQ bands, compressor gain)
 
 export const exportToBlobInputSchema = z.object({
   width:          z.coerce.number().int().min(EXPORT_LIMITS.width.min).max(EXPORT_LIMITS.width.max).optional(),
@@ -223,6 +226,49 @@ export const unlinkClipInputSchema = z.object({
 
 export const relinkClipInputSchema = z.object({
   clipId: z.string(),
+})
+
+// ── Phase 2: per-edge transition / track move / audio effect ───
+
+/** Override the in/out transition on one edge of a clip. */
+export const updateClipTransitionEdgeInputSchema = z.object({
+  clipId: z.string(),
+  edge: transitionEdgeSchema,
+  type: transitionTypeSchema.optional(),
+  durationMs: num().int().min(100).max(3000).optional(),
+})
+
+/** Remove a previously-set per-edge override so the base transition applies. */
+export const clearClipTransitionOverrideInputSchema = z.object({
+  clipId: z.string(),
+  edge: transitionEdgeSchema,
+})
+
+/** Move a clip to the sibling track of the same type (up = layer above). */
+export const moveClipToSiblingTrackInputSchema = z.object({
+  clipId: z.string(),
+  direction: siblingDirectionSchema,
+})
+
+/**
+ * AudioEffect (3-band EQ + compressor + noise gate).
+ *
+ * dB ranges reflect the domain: EQ bands and comp gain are ±12 dB,
+ * comp threshold is -50..0 dB, noise gate is -100..0 dB (-100 = off).
+ * Comp attack/release are in seconds (0..1).
+ */
+export const updateClipAudioEffectInputSchema = z.object({
+  clipId: z.string(),
+  eqLow:         gainDb().optional(),
+  eqMid:         gainDb().optional(),
+  eqHigh:        gainDb().optional(),
+  compressor:    bool().optional(),
+  compThreshold: num().min(-50).max(0).optional(),
+  compRatio:     num().min(1).max(20).optional(),
+  compAttack:    unit().optional(),
+  compRelease:   unit().optional(),
+  compGain:      gainDb().optional(),
+  noiseGate:     num().min(-100).max(0).optional(),
 })
 
 // ── Output schemas ─────────────────────────────────────────────

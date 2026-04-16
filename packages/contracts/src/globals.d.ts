@@ -23,6 +23,12 @@ type BlendMode =
   | 'darken' | 'lighten' | 'color-dodge' | 'color-burn'
   | 'hard-light' | 'soft-light' | 'difference' | 'exclusion'
 
+/** Per-edge transition target (Phase 2). */
+type TransitionEdge = 'in' | 'out'
+
+/** Sibling-track move direction (Phase 2). */
+type SiblingDirection = 'up' | 'down'
+
 export interface VideoBuffAutomationAPI {
   readonly ready: true
   readonly version: string
@@ -73,6 +79,18 @@ export interface VideoBuffAutomationAPI {
   }) => OkResult
   unlinkClip: (input: { clipId: string }) => OkResult
   relinkClip: (input: { clipId: string }) => OkResult
+
+  // ── Phase 2 — per-edge transition / track move / audio effect ─
+  updateClipTransitionEdge: (input: {
+    clipId: string
+    edge: TransitionEdge
+    type?: TransitionType
+    durationMs?: number
+  }) => OkResult
+  clearClipTransitionOverride: (input: { clipId: string; edge: TransitionEdge }) => OkResult
+  moveClipToSiblingTrack: (input: { clipId: string; direction: SiblingDirection }) => OkResult
+  // Flat shape: `clipId` + any subset of AudioEffect fields.
+  updateClipAudioEffect: (input: { clipId: string; [key: string]: unknown }) => OkResult
 }
 
 declare global {
