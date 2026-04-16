@@ -114,6 +114,11 @@ export interface VideoBuffAutomationAPI {
   moveClipToSiblingTrack: (input: { clipId: string; direction: SiblingDirection }) => OkResult
   // Flat shape: `clipId` + any subset of AudioEffect fields.
   updateClipAudioEffect: (input: { clipId: string; [key: string]: unknown }) => OkResult
+
+  // ── Asset management ────────────────────────────────────────
+  // Fails with `assetNotFound` for a missing id, `assetInUse` when any
+  // clip still references the asset. See bootstrap.ts for rationale.
+  removeAsset: (input: { assetId: string }) => OkResult
 }
 
 declare global {

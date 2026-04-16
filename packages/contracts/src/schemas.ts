@@ -331,6 +331,18 @@ export const importAssetsResultSchema = z.object({
   assetIds: z.array(z.string()),
 })
 
+/**
+ * `videobuff_remove_asset` — delete an asset from the project library.
+ *
+ * Refuses if any clip still references `assetId` (see bootstrap.ts for
+ * the `assetInUse` / `assetNotFound` reasons). `assetId` is a plain
+ * string — assets are identified by uuid-v4 in the editor, but we
+ * don't constrain the shape here in case the id scheme ever changes.
+ */
+export const removeAssetInputSchema = z.object({
+  assetId: z.string().min(1),
+})
+
 // ── Output schemas ─────────────────────────────────────────────
 
 export const exportSettingsSchema = z.object({

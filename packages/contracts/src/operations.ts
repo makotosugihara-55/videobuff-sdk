@@ -40,6 +40,7 @@ import {
   updateClipAudioEffectInputSchema,
   importAssetsInputSchema,
   importAssetsResultSchema,
+  removeAssetInputSchema,
   okResultSchema,
 } from './schemas.js'
 
@@ -216,6 +217,11 @@ export const operations = {
     description: 'Import local media files (video/audio/image) by absolute path. Also places them on the timeline.',
     input: importAssetsInputSchema,
     output: importAssetsResultSchema,
+  },
+  removeAsset: {
+    description: 'Remove an asset from the library. Fails with assetInUse if any clip still references it — remove dependent clips first.',
+    input: removeAssetInputSchema,
+    output: okResultSchema,
   },
 } as const satisfies Record<string, OperationDef>
 

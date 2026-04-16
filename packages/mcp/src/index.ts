@@ -47,6 +47,7 @@ import {
   moveClipToSiblingTrackInputSchema,
   updateClipAudioEffectInputSchema,
   importAssetsInputSchema,
+  removeAssetInputSchema,
   type VideoBuffAutomationAPI,
 } from '@videobuff/contracts'
 import { VideoBuffSession, log } from '@videobuff/core'
@@ -233,6 +234,10 @@ registerArgTool('videobuff_update_clip_transition_edge',    'updateClipTransitio
 registerArgTool('videobuff_clear_clip_transition_override', 'clearClipTransitionOverride', clearClipTransitionOverrideInputSchema, 'clearClipTransitionOverride')
 registerArgTool('videobuff_move_clip_to_sibling_track',     'moveClipToSiblingTrack',      moveClipToSiblingTrackInputSchema,      'moveClipToSiblingTrack')
 registerArgTool('videobuff_update_clip_audio_effect',       'updateClipAudioEffect',       updateClipAudioEffectInputSchema,       'updateClipAudioEffect')
+
+// ── Asset management ─────────────────────────────────────────
+
+registerArgTool('videobuff_remove_asset',                   'removeAsset',                 removeAssetInputSchema,                 'removeAsset')
 
 // ── Asset import (special — drives hidden file input via Playwright) ─
 //
