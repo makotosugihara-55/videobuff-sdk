@@ -131,7 +131,7 @@ export const updateTextClipInputSchema = z.object({
   shadowBlur: num().min(0).optional(),
   shadowOffsetX: num().optional(),
   shadowOffsetY: num().optional(),
-  opacity: num().min(0).max(1).optional(),
+  opacity: unipolar100().optional(),
 })
 
 // ── Phase 1: project / clip properties ─────────────────────────
