@@ -6,8 +6,22 @@
  * or reference this file to pick up the augmentation.
  */
 
-/** Shared `{ ok: true }` return type for mutation methods. */
-type OkResult = { readonly ok: true }
+/**
+ * Shared result type for mutation methods.
+ *
+ * Discriminated on `ok` — see `schemas.ts#okResultSchema` for the
+ * authoritative shape and rationale. In short: `{ok:true}` means the
+ * mutation landed, `{ok:false, reason}` means it was rejected (e.g.
+ * the clipId no longer exists).
+ */
+type OkResult =
+  | { readonly ok: true }
+  | { readonly ok: false; readonly reason: string }
+
+/** `selectClip` result — see `schemas.ts#selectClipResultSchema`. */
+type SelectClipResult =
+  | { readonly ok: true; readonly selectedClipId: string | null }
+  | { readonly ok: false; readonly reason: string }
 
 /** Aspect ratio options supported by the project. */
 type AspectRatio = '16:9' | '9:16' | '1:1' | '4:3'
@@ -45,7 +59,7 @@ export interface VideoBuffAutomationAPI {
     durationMs: number
     settings: Record<string, unknown>
   }>
-  selectClip: (input: { clipId: string | null }) => { selectedClipId: string | null }
+  selectClip: (input: { clipId: string | null }) => SelectClipResult
   removeClip: (input: { clipId: string }) => OkResult
   splitClip: (input: { clipId: string; splitAtMs: number }) => OkResult
   moveClip: (input: { clipId: string; newStartMs: number }) => OkResult
@@ -76,6 +90,15 @@ export interface VideoBuffAutomationAPI {
     opacity?: number
     blendMode?: BlendMode
     borderRadius?: number
+  }) => OkResult
+  // Per-field shadow patch — see `updateImageClipShadowInputSchema`.
+  updateImageClipShadow: (input: {
+    clipId: string
+    enabled?: boolean
+    color?: string
+    blur?: number
+    offsetX?: number
+    offsetY?: number
   }) => OkResult
   unlinkClip: (input: { clipId: string }) => OkResult
   relinkClip: (input: { clipId: string }) => OkResult

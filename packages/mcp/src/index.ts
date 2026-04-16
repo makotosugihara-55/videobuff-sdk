@@ -39,6 +39,7 @@ import {
   updateClipVolumeInputSchema,
   updateClipSpeedInputSchema,
   updateImageClipInputSchema,
+  updateImageClipShadowInputSchema,
   unlinkClipInputSchema,
   relinkClipInputSchema,
   updateClipTransitionEdgeInputSchema,
@@ -207,6 +208,7 @@ registerArgTool('videobuff_update_clip_transition', 'updateClipTransition', upda
 registerArgTool('videobuff_update_clip_volume',     'updateClipVolume',     updateClipVolumeInputSchema,     'updateClipVolume')
 registerArgTool('videobuff_update_clip_speed',      'updateClipSpeed',      updateClipSpeedInputSchema,      'updateClipSpeed')
 registerArgTool('videobuff_update_image_clip',      'updateImageClip',      updateImageClipInputSchema,      'updateImageClip')
+registerArgTool('videobuff_update_image_clip_shadow', 'updateImageClipShadow', updateImageClipShadowInputSchema, 'updateImageClipShadow')
 registerArgTool('videobuff_unlink_clip',            'unlinkClip',           unlinkClipInputSchema,           'unlinkClip')
 registerArgTool('videobuff_relink_clip',            'relinkClip',           relinkClipInputSchema,           'relinkClip')
 

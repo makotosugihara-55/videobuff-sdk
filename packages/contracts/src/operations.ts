@@ -31,6 +31,7 @@ import {
   updateClipVolumeInputSchema,
   updateClipSpeedInputSchema,
   updateImageClipInputSchema,
+  updateImageClipShadowInputSchema,
   unlinkClipInputSchema,
   relinkClipInputSchema,
   updateClipTransitionEdgeInputSchema,
@@ -174,6 +175,11 @@ export const operations = {
   updateImageClip: {
     description: 'Update image clip properties.',
     input: updateImageClipInputSchema,
+    output: okResultSchema,
+  },
+  updateImageClipShadow: {
+    description: 'Update image clip drop-shadow (per-field merge, no clobber).',
+    input: updateImageClipShadowInputSchema,
     output: okResultSchema,
   },
   unlinkClip: {

@@ -207,17 +207,35 @@ export const updateClipSpeedInputSchema = z.object({
 /**
  * Image-clip top-level fields.
  *
- * Shadow editing is intentionally deferred — the store merges via
- * `Partial<ImageClip>`, which means passing a partial `shadow` here
- * would clobber unspecified fields. A dedicated `updateImageClipShadow`
- * tool will land in a follow-up batch once the per-field merge shape
- * is settled.
+ * Shadow lives in a nested `{enabled,color,blur,offsetX,offsetY}`
+ * sub-object on the domain model; updating it requires a per-field
+ * merge so the store's shallow `Partial<ImageClip>` can't clobber
+ * unspecified fields. That lives in `updateImageClipShadowInputSchema`
+ * below — routed through a dedicated tool.
  */
 export const updateImageClipInputSchema = z.object({
   clipId: z.string(),
   opacity: unipolar100().optional(),
   blendMode: blendModeSchema.optional(),
   borderRadius: num().min(0).max(50).optional(),
+})
+
+/**
+ * Per-field shadow patch. Flat to dodge the store's shallow-merge
+ * footgun (see `updateImageClipInputSchema` doc). Bounds mirror the
+ * domain ranges in `src/types/project.ts` on the web side.
+ *
+ * `color` accepts any string so callers can pass named colors or
+ * `rgba(...)` in addition to hex — matches the field's runtime shape
+ * in the editor.
+ */
+export const updateImageClipShadowInputSchema = z.object({
+  clipId: z.string(),
+  enabled: bool().optional(),
+  color:   z.string().optional(),
+  blur:    num().min(0).max(100).optional(),
+  offsetX: num().min(-50).max(50).optional(),
+  offsetY: num().min(-50).max(50).optional(),
 })
 
 export const unlinkClipInputSchema = z.object({
@@ -349,6 +367,17 @@ export const okResultSchema = z.discriminatedUnion('ok', [
   z.object({ ok: z.literal(false), reason: z.string() }),
 ])
 
-export const selectClipResultSchema = z.object({
-  selectedClipId: z.string().nullable(),
-})
+/**
+ * `selectClip` result — discriminated like `okResultSchema` but the
+ * success variant still exposes `selectedClipId` for the caller to
+ * confirm what the UI ended up selecting (including `null` on deselect).
+ *
+ * Failure path: passing a non-null id that doesn't exist on the
+ * timeline returns `{ok:false, reason:"clipNotFound"}` — aligned with
+ * the mutation tools, so LLM callers can use a single branching
+ * pattern across every clip-touching operation.
+ */
+export const selectClipResultSchema = z.discriminatedUnion('ok', [
+  z.object({ ok: z.literal(true), selectedClipId: z.string().nullable() }),
+  z.object({ ok: z.literal(false), reason: z.string() }),
+])
