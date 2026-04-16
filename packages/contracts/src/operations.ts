@@ -57,7 +57,7 @@ export const operations = {
     output: pingResultSchema,
   },
   getProjectInfo: {
-    description: 'Project snapshot: durationMs and per-track summary.',
+    description: 'Full project snapshot: name, settings, assets, and every clip on every track.',
     input: z.object({}),
     output: z.unknown(),
   },
