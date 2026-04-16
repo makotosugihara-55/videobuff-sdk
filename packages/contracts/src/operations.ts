@@ -32,10 +32,7 @@ import {
   updateClipSpeedInputSchema,
   updateImageClipInputSchema,
   updateImageClipShadowInputSchema,
-  unlinkClipInputSchema,
-  relinkClipInputSchema,
-  updateClipTransitionEdgeInputSchema,
-  clearClipTransitionOverrideInputSchema,
+  linkClipInputSchema,
   moveClipToSiblingTrackInputSchema,
   updateClipAudioEffectInputSchema,
   importAssetsInputSchema,
@@ -46,7 +43,19 @@ import {
   okResultSchema,
 } from './schemas.js'
 
-export interface OperationDef<I extends z.ZodTypeAny = z.ZodTypeAny, O extends z.ZodTypeAny = z.ZodTypeAny> {
+/**
+ * Every operation declares its input as `z.object({...})` — the MCP
+ * server surfaces `.shape` directly as the tool's JSON Schema. Typing
+ * `input` as `z.ZodObject` (not the wider `z.ZodTypeAny`) makes that
+ * contract explicit and lets callers drop the `as z.ZodObject` cast.
+ *
+ * `output` stays loose: some operations return `z.unknown()` snapshots
+ * (`getProjectInfo`, `getUIState`) where narrowing would be noise.
+ */
+export interface OperationDef<
+  I extends z.ZodObject<z.ZodRawShape> = z.ZodObject<z.ZodRawShape>,
+  O extends z.ZodTypeAny = z.ZodTypeAny,
+> {
   description: string
   input: I
   output: O
@@ -164,7 +173,10 @@ export const operations = {
     output: okResultSchema,
   },
   updateClipTransition: {
-    description: 'Update the base transition on a clip.',
+    description:
+      'Set or clear a clip transition. Omit edge to update the base ' +
+      '(both edges); pass edge="in"|"out" to override one edge; pass ' +
+      'edge + clear=true to remove an override.',
     input: updateClipTransitionInputSchema,
     output: okResultSchema,
   },
@@ -188,24 +200,12 @@ export const operations = {
     input: updateImageClipShadowInputSchema,
     output: okResultSchema,
   },
-  unlinkClip: {
-    description: 'Unlink a video/audio clip pair so they move independently.',
-    input: unlinkClipInputSchema,
-    output: okResultSchema,
-  },
-  relinkClip: {
-    description: 'Re-link a previously unlinked clip to its sibling.',
-    input: relinkClipInputSchema,
-    output: okResultSchema,
-  },
-  updateClipTransitionEdge: {
-    description: 'Override the in/out transition on one edge of a clip.',
-    input: updateClipTransitionEdgeInputSchema,
-    output: okResultSchema,
-  },
-  clearClipTransitionOverride: {
-    description: 'Remove a per-edge transition override (restore the base).',
-    input: clearClipTransitionOverrideInputSchema,
+  linkClip: {
+    description:
+      'Toggle the video/audio sibling link for a clip. ' +
+      'linked=false unlinks so the pair moves independently; ' +
+      'linked=true re-links a previously unlinked pair.',
+    input: linkClipInputSchema,
     output: okResultSchema,
   },
   moveClipToSiblingTrack: {

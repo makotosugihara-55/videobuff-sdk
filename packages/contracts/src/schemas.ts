@@ -147,6 +147,13 @@ type Bounds = { min: number; max: number }
 const ranged    = (l: Bounds) => num().min(l.min).max(l.max)
 const rangedInt = (l: Bounds) => num().int().min(l.min).max(l.max)
 
+/**
+ * Export tool input. Every field is optional — callers omit the whole
+ * object by sending `{}`. The outer schema is intentionally NOT
+ * `.optional()`: MCP tools always receive an object, and leaving the
+ * top-level as `ZodObject` keeps the `OperationDef.input` contract
+ * uniform (`.shape` is available without an `.unwrap()` dance).
+ */
 export const exportToBlobInputSchema = z.object({
   width:          rangedInt(EXPORT_LIMITS.width).optional(),
   height:         rangedInt(EXPORT_LIMITS.height).optional(),
@@ -155,7 +162,7 @@ export const exportToBlobInputSchema = z.object({
   videoBitrate:   rangedInt(EXPORT_LIMITS.videoBitrate).optional(),
   loudnessTarget: loudnessTargetSchema.optional(),
   timeoutMs:      rangedInt(EXPORT_LIMITS.timeoutMs).optional(),
-}).optional()
+})
 
 export const addTextClipInputSchema = z.object({
   startMs: intMs(),
@@ -262,11 +269,31 @@ export const updateClipColorGradeInputSchema = z.object({
   blur:           unipolar100().optional(),
 })
 
-/** Base transition (shared by both edges). durationMs is clamped 100..3000. */
+/**
+ * Unified transition tool.
+ *
+ * Handles three cases in one schema so we don't burn tool-declaration
+ * tokens on three nearly-identical tools:
+ *
+ *   - `{clipId, type?, durationMs?}`            — set the base transition
+ *                                                 (shared by both edges)
+ *   - `{clipId, edge, type?, durationMs?}`      — override one edge
+ *   - `{clipId, edge, clear: true}`             — remove an edge override
+ *                                                 (base re-applies)
+ *
+ * Validation invariants enforced in the store layer:
+ *   - `clear: true` requires `edge` (you can't clear a base that always
+ *     applies; remove it by setting `type: 'none'` instead).
+ *   - `clear: true` with `type`/`durationMs` is rejected — the two
+ *     intents contradict each other and a silent precedence rule would
+ *     surprise callers.
+ */
 export const updateClipTransitionInputSchema = z.object({
   clipId: z.string(),
+  edge: transitionEdgeSchema.optional(),
   type: transitionTypeSchema.optional(),
   durationMs: rangedInt(CLIP_LIMITS.transitionDurationMs).optional(),
+  clear: z.boolean().optional(),
 })
 
 export const updateClipVolumeInputSchema = z.object({
@@ -319,29 +346,21 @@ export const updateImageClipShadowInputSchema = z.object({
   offsetY: ranged(CLIP_LIMITS.shadowOffsetPx).optional(),
 })
 
-export const unlinkClipInputSchema = z.object({
+/**
+ * Unified video/audio sibling link toggle.
+ *
+ * `linked: false` unlinks the video/audio pair so they move
+ * independently; `linked: true` re-links a previously unlinked pair.
+ * Collapses the former `unlinkClip` / `relinkClip` tool pair so the
+ * LLM sees one explicit knob instead of two name-only variants.
+ */
+export const linkClipInputSchema = z.object({
   clipId: z.string(),
+  linked: z.boolean(),
 })
 
-export const relinkClipInputSchema = z.object({
-  clipId: z.string(),
-})
-
-// ── Phase 2: per-edge transition / track move / audio effect ───
-
-/** Override the in/out transition on one edge of a clip. */
-export const updateClipTransitionEdgeInputSchema = z.object({
-  clipId: z.string(),
-  edge: transitionEdgeSchema,
-  type: transitionTypeSchema.optional(),
-  durationMs: rangedInt(CLIP_LIMITS.transitionDurationMs).optional(),
-})
-
-/** Remove a previously-set per-edge override so the base transition applies. */
-export const clearClipTransitionOverrideInputSchema = z.object({
-  clipId: z.string(),
-  edge: transitionEdgeSchema,
-})
+// ── Phase 2: track move / audio effect ─────────────────────────
+// (Per-edge transition set/clear folded into updateClipTransitionInputSchema.)
 
 /** Move a clip to the sibling track of the same type (up = layer above). */
 export const moveClipToSiblingTrackInputSchema = z.object({

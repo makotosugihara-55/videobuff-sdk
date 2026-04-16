@@ -96,10 +96,19 @@ export interface VideoBuffAutomationAPI {
   updateClipTransform: (input: { clipId: string; [key: string]: unknown }) => OkResult
   // Flat shape: `clipId` + any subset of ColorGrade fields.
   updateClipColorGrade: (input: { clipId: string; [key: string]: unknown }) => OkResult
+  /**
+   * Unified transition tool. See `updateClipTransitionInputSchema` in
+   * schemas.ts for the three-case dispatch:
+   *   - no `edge`                → update base
+   *   - `edge` + type/durationMs → set per-edge override
+   *   - `edge` + `clear: true`   → clear per-edge override
+   */
   updateClipTransition: (input: {
     clipId: string
+    edge?: TransitionEdge
     type?: TransitionType
     durationMs?: number
+    clear?: boolean
   }) => OkResult
   updateClipVolume: (input: { clipId: string; volume: number }) => OkResult
   // Flat shape: `clipId` + any subset of SpeedConfig fields.
@@ -119,17 +128,10 @@ export interface VideoBuffAutomationAPI {
     offsetX?: number
     offsetY?: number
   }) => OkResult
-  unlinkClip: (input: { clipId: string }) => OkResult
-  relinkClip: (input: { clipId: string }) => OkResult
+  linkClip: (input: { clipId: string; linked: boolean }) => OkResult
 
-  // ── Phase 2 — per-edge transition / track move / audio effect ─
-  updateClipTransitionEdge: (input: {
-    clipId: string
-    edge: TransitionEdge
-    type?: TransitionType
-    durationMs?: number
-  }) => OkResult
-  clearClipTransitionOverride: (input: { clipId: string; edge: TransitionEdge }) => OkResult
+  // ── Phase 2 — track move / audio effect ─────────────────────
+  // (Per-edge transition set/clear handled by updateClipTransition above.)
   moveClipToSiblingTrack: (input: { clipId: string; direction: SiblingDirection }) => OkResult
   // Flat shape: `clipId` + any subset of AudioEffect fields.
   updateClipAudioEffect: (input: { clipId: string; [key: string]: unknown }) => OkResult

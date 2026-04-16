@@ -20,46 +20,15 @@ import { tmpdir } from 'node:os'
 import { join, isAbsolute, extname, sep } from 'node:path'
 import {
   operations,
-  type OperationName,
+  // Only the schemas with bespoke (non-`registerArgTool`) registration
+  // stay imported — `registerArgTool` now pulls input shapes straight
+  // from `operations[op].input`, removing ~20 redundant imports.
   exportToBlobInputSchema,
-  addTextClipInputSchema,
-  setPlayheadInputSchema,
-  selectClipInputSchema,
-  removeClipInputSchema,
-  splitClipInputSchema,
-  moveClipInputSchema,
-  trimClipStartInputSchema,
-  trimClipEndInputSchema,
-  updateTextClipInputSchema,
-  setProjectNameInputSchema,
-  setAspectRatioInputSchema,
-  updateClipTransformInputSchema,
-  updateClipColorGradeInputSchema,
-  updateClipTransitionInputSchema,
-  updateClipVolumeInputSchema,
-  updateClipSpeedInputSchema,
-  updateImageClipInputSchema,
-  updateImageClipShadowInputSchema,
-  unlinkClipInputSchema,
-  relinkClipInputSchema,
-  updateClipTransitionEdgeInputSchema,
-  clearClipTransitionOverrideInputSchema,
-  moveClipToSiblingTrackInputSchema,
-  updateClipAudioEffectInputSchema,
   importAssetsInputSchema,
-  removeAssetInputSchema,
-  addAssetToTimelineInputSchema,
   type VideoBuffAutomationAPI,
 } from '@videobuff/contracts'
 import { VideoBuffSession, log } from '@videobuff/core'
 
-/**
- * Structural shape for a Zod object's `.shape`. Kept local so this package
- * doesn't need a direct zod dependency (all Zod types flow transitively
- * through @videobuff/contracts).
- */
-// biome-ignore lint/suspicious/noExplicitAny: zod internal shape type is not worth reimporting
-type SchemaShape = Record<string, any>
 type ToolArgs = Record<string, unknown>
 
 // ── Constants ────────────────────────────────────────────────
@@ -281,11 +250,19 @@ type ArgMethod = Exclude<
   NoArgMethod | 'ready' | 'version' | 'exportToBlob'
 >
 
-/** Register a tool whose underlying API method takes zero arguments. */
-function registerNoArgTool(toolName: string, opName: OperationName, method: NoArgMethod): void {
+/**
+ * Register a tool whose underlying API method takes zero arguments.
+ *
+ * `op` names both the entry in the operations registry (used for
+ * description + validated input shape) AND the method invoked on
+ * `window.videobuff`. Every auto-generated tool uses this 1:1 mapping,
+ * which is why the helper takes one name instead of repeating it three
+ * times at every call site.
+ */
+function registerNoArgTool(toolName: string, op: NoArgMethod): void {
   server.registerTool(
     toolName,
-    { description: operations[opName].description, inputSchema: {} },
+    { description: operations[op].description, inputSchema: {} },
     () =>
       withPage((page) =>
         page.evaluate(
@@ -293,22 +270,24 @@ function registerNoArgTool(toolName: string, opName: OperationName, method: NoAr
             type Invoker = Record<string, () => unknown>
             return (window.videobuff as unknown as Invoker)[m]!()
           },
-          method,
+          op,
         ),
       ),
   )
 }
 
-/** Register a tool whose underlying API method takes a single object argument. */
-function registerArgTool(
-  toolName: string,
-  opName: OperationName,
-  schema: { shape: SchemaShape },
-  method: ArgMethod,
-): void {
+/**
+ * Register a tool whose underlying API method takes a single object argument.
+ *
+ * The Zod input schema is pulled straight from `operations[op].input` —
+ * the contracts package is the single source of truth for tool shapes.
+ * See the `registerNoArgTool` doc for why `op` is one parameter, not
+ * three.
+ */
+function registerArgTool(toolName: string, op: ArgMethod): void {
   server.registerTool(
     toolName,
-    { description: operations[opName].description, inputSchema: schema.shape },
+    { description: operations[op].description, inputSchema: operations[op].input.shape },
     (args: ToolArgs) =>
       withPage((page) =>
         page.evaluate(
@@ -316,7 +295,7 @@ function registerArgTool(
             type Invoker = Record<string, (x: unknown) => unknown>
             return (window.videobuff as unknown as Invoker)[m]!(a)
           },
-          { m: method, a: args },
+          { m: op, a: args },
         ),
       ),
   )
@@ -331,51 +310,50 @@ const server = new McpServer(
 
 // ── Simple tools (no args) ────────────────────────────────────
 
-registerNoArgTool('videobuff_ping',           'ping',           'ping')
-registerNoArgTool('videobuff_get_project',    'getProjectInfo', 'getProjectInfo')
-registerNoArgTool('videobuff_get_ui_state',   'getUIState',     'getUIState')
-registerNoArgTool('videobuff_toggle_play',    'togglePlay',     'togglePlay')
-registerNoArgTool('videobuff_undo',           'undo',           'undo')
-registerNoArgTool('videobuff_redo',           'redo',           'redo')
-registerNoArgTool('videobuff_reset_project',  'resetProject',   'resetProject')
+registerNoArgTool('videobuff_ping',          'ping')
+registerNoArgTool('videobuff_get_project',   'getProjectInfo')
+registerNoArgTool('videobuff_get_ui_state',  'getUIState')
+registerNoArgTool('videobuff_toggle_play',   'togglePlay')
+registerNoArgTool('videobuff_undo',          'undo')
+registerNoArgTool('videobuff_redo',          'redo')
+registerNoArgTool('videobuff_reset_project', 'resetProject')
 
 // ── Tools with typed inputs ───────────────────────────────────
 
-registerArgTool('videobuff_add_text_clip',    'addTextClip',    addTextClipInputSchema,    'addTextClip')
-registerArgTool('videobuff_set_playhead',     'setPlayheadMs',  setPlayheadInputSchema,    'setPlayheadMs')
-registerArgTool('videobuff_select_clip',      'selectClip',     selectClipInputSchema,     'selectClip')
-registerArgTool('videobuff_remove_clip',      'removeClip',     removeClipInputSchema,     'removeClip')
-registerArgTool('videobuff_split_clip',       'splitClip',      splitClipInputSchema,      'splitClip')
-registerArgTool('videobuff_move_clip',        'moveClip',       moveClipInputSchema,       'moveClip')
-registerArgTool('videobuff_trim_clip_start',  'trimClipStart',  trimClipStartInputSchema,  'trimClipStart')
-registerArgTool('videobuff_trim_clip_end',    'trimClipEnd',    trimClipEndInputSchema,    'trimClipEnd')
-registerArgTool('videobuff_update_text_clip', 'updateTextClip', updateTextClipInputSchema, 'updateTextClip')
+registerArgTool('videobuff_add_text_clip',    'addTextClip')
+registerArgTool('videobuff_set_playhead',     'setPlayheadMs')
+registerArgTool('videobuff_select_clip',      'selectClip')
+registerArgTool('videobuff_remove_clip',      'removeClip')
+registerArgTool('videobuff_split_clip',       'splitClip')
+registerArgTool('videobuff_move_clip',        'moveClip')
+registerArgTool('videobuff_trim_clip_start',  'trimClipStart')
+registerArgTool('videobuff_trim_clip_end',    'trimClipEnd')
+registerArgTool('videobuff_update_text_clip', 'updateTextClip')
 
 // ── Phase 1: project settings & clip properties ──────────────
 
-registerArgTool('videobuff_set_project_name',       'setProjectName',       setProjectNameInputSchema,       'setProjectName')
-registerArgTool('videobuff_set_aspect_ratio',       'setAspectRatio',       setAspectRatioInputSchema,       'setAspectRatio')
-registerArgTool('videobuff_update_clip_transform',  'updateClipTransform',  updateClipTransformInputSchema,  'updateClipTransform')
-registerArgTool('videobuff_update_clip_color',      'updateClipColorGrade', updateClipColorGradeInputSchema, 'updateClipColorGrade')
-registerArgTool('videobuff_update_clip_transition', 'updateClipTransition', updateClipTransitionInputSchema, 'updateClipTransition')
-registerArgTool('videobuff_update_clip_volume',     'updateClipVolume',     updateClipVolumeInputSchema,     'updateClipVolume')
-registerArgTool('videobuff_update_clip_speed',      'updateClipSpeed',      updateClipSpeedInputSchema,      'updateClipSpeed')
-registerArgTool('videobuff_update_image_clip',      'updateImageClip',      updateImageClipInputSchema,      'updateImageClip')
-registerArgTool('videobuff_update_image_clip_shadow', 'updateImageClipShadow', updateImageClipShadowInputSchema, 'updateImageClipShadow')
-registerArgTool('videobuff_unlink_clip',            'unlinkClip',           unlinkClipInputSchema,           'unlinkClip')
-registerArgTool('videobuff_relink_clip',            'relinkClip',           relinkClipInputSchema,           'relinkClip')
+registerArgTool('videobuff_set_project_name',         'setProjectName')
+registerArgTool('videobuff_set_aspect_ratio',         'setAspectRatio')
+registerArgTool('videobuff_update_clip_transform',    'updateClipTransform')
+registerArgTool('videobuff_update_clip_color',        'updateClipColorGrade')
+registerArgTool('videobuff_update_clip_transition',   'updateClipTransition')
+registerArgTool('videobuff_update_clip_volume',       'updateClipVolume')
+registerArgTool('videobuff_update_clip_speed',        'updateClipSpeed')
+registerArgTool('videobuff_update_image_clip',        'updateImageClip')
+registerArgTool('videobuff_update_image_clip_shadow', 'updateImageClipShadow')
+registerArgTool('videobuff_link_clip',                'linkClip')
 
-// ── Phase 2: per-edge transition / track move / audio effect ─
+// ── Phase 2: track move / audio effect ──────────────────────
+// (Transition base + per-edge set/clear are all handled by the unified
+//  videobuff_update_clip_transition tool above.)
 
-registerArgTool('videobuff_update_clip_transition_edge',    'updateClipTransitionEdge',    updateClipTransitionEdgeInputSchema,    'updateClipTransitionEdge')
-registerArgTool('videobuff_clear_clip_transition_override', 'clearClipTransitionOverride', clearClipTransitionOverrideInputSchema, 'clearClipTransitionOverride')
-registerArgTool('videobuff_move_clip_to_sibling_track',     'moveClipToSiblingTrack',      moveClipToSiblingTrackInputSchema,      'moveClipToSiblingTrack')
-registerArgTool('videobuff_update_clip_audio_effect',       'updateClipAudioEffect',       updateClipAudioEffectInputSchema,       'updateClipAudioEffect')
+registerArgTool('videobuff_move_clip_to_sibling_track', 'moveClipToSiblingTrack')
+registerArgTool('videobuff_update_clip_audio_effect',   'updateClipAudioEffect')
 
 // ── Asset management ─────────────────────────────────────────
 
-registerArgTool('videobuff_remove_asset',                   'removeAsset',                 removeAssetInputSchema,                 'removeAsset')
-registerArgTool('videobuff_add_asset_to_timeline',          'addAssetToTimeline',          addAssetToTimelineInputSchema,          'addAssetToTimeline')
+registerArgTool('videobuff_remove_asset',          'removeAsset')
+registerArgTool('videobuff_add_asset_to_timeline', 'addAssetToTimeline')
 
 // ── Asset import (special — drives hidden file input via Playwright) ─
 //
@@ -473,7 +451,7 @@ server.registerTool(
   'videobuff_export',
   {
     description: operations.exportToBlob.description,
-    inputSchema: exportToBlobInputSchema.unwrap().shape,
+    inputSchema: exportToBlobInputSchema.shape,
   },
   async (args, extra) => {
     try {
